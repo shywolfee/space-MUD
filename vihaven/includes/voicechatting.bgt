@@ -3,7 +3,6 @@ const string mciGetErrorString="int mciGetErrorStringA(int, char*, int);";
 class voicechatting
 {
 string filename="file.wav";
-library mci;
 void record()
 {
 string result="";

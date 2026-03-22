@@ -27,7 +27,7 @@ speak(char);
 chat.insert_at(cursor, char);
 cursor+=1;
 }
-if(key_pressed(KEY_BACK) and chat.length()>0 and cursor<=chat.length())
+if(key_pressed(KEY_BACK) and chat.length>0 and cursor<=chat.length)
 {
 if(cursor>0)
 {
@@ -39,19 +39,19 @@ cursor-=1;
 else
 speak("blank");
 }
-if(key_pressed(KEY_DELETE) and chat.length>0 and cursor>=0 and cursor<chat.length()-1)
+if(key_pressed(KEY_DELETE) and chat.length>0 and cursor>=0 and cursor<chat.length-1)
 {
 string char=chat[cursor+1];
 if(v.charrepeat==1)
 speak(char);
 chat.remove_at(cursor+1);
 }
-if(key_pressed(KEY_RIGHT) and chat.length()>0 and cursor<chat.length)
+if(key_pressed(KEY_RIGHT) and chat.length>0 and cursor<chat.length)
 {
-if(cursor<chat.length())
+if(cursor<chat.length)
 {
 cursor+=1;
-if(cursor>=chat.length())
+if(cursor>=chat.length)
 speak("blank");
 else speak(chat[cursor]);
 }
@@ -108,9 +108,9 @@ return;
 if(key_pressed(KEY_UP) or key_pressed(KEY_DOWN))
 {
 string vlad;
-if(chat.length()>0)
+if(chat.length>0)
 {
-for(int i=0; i<chat.length(); i++)
+for(int i=0; i<chat.length; i++)
 {
 vlad+=chat[i];
 }
