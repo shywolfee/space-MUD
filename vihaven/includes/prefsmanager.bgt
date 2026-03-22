@@ -1,16 +1,20 @@
-//making a prefs reader
 void readprefs()
 {
+if(!file_exists(prefsdir+"/settings.dat")) return;
 file p;
 p.open(prefsdir+"/settings.dat", "rb");
 string prefs=p.read();
 prefs=string_decrypt(prefs, "fucking comments");
 p.close();
-string[] parameters=string_split(prefs, "\r\n", true);
+// Handle both LF and CRLF line endings
+prefs=string_replace(prefs, "\r\n", "\n", true);
+string[] parameters=string_split(prefs, "\n", true);
 string[] values;
 for(int i=0; i<parameters.length(); i++)
 {
-values.insert_at(i, string_replace(parameters[i], string_left(parameters[i], string_contains(parameters[i], "=", 1)+1), "", true));
+int eq=string_contains(parameters[i], "=", 1);
+if(eq<0) continue;
+values.insert_at(i, string_replace(parameters[i], string_left(parameters[i], eq+1), "", true));
 parameters[i]=string_replace(parameters[i], "="+values[i], "", true);
 }
 if(parameters.find("name")!=-1)
@@ -36,16 +40,9 @@ void writeprefs()
 {
 file p;
 p.open(prefsdir+"/settings.dat", "wb");
-string what;
 string ra="0";
 if(rules_accepted) ra="1";
-what="name="+name+"
-lastcoms="+last_seen_comments+"
-menuscrolling="+menuscroll+"
-rules_accepted="+ra+"
-stored_user="+stored_user+"
-stored_pass="+stored_pass+"
-stored_email="+stored_email+"";
+string what="name="+name+"\n"+"lastcoms="+last_seen_comments+"\n"+"menuscrolling="+menuscroll+"\n"+"rules_accepted="+ra+"\n"+"stored_user="+stored_user+"\n"+"stored_pass="+stored_pass+"\n"+"stored_email="+stored_email;
 p.write(string_encrypt(what, "fucking comments"));
 p.close();
 }

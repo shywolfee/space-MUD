@@ -30,11 +30,11 @@ void login()
 {
 if(stored_user == "" or stored_pass == "")
 {
-dlg("No account found. Please set up an account first.");
 setupmenu();
-menu.add_item_tts("Register a new account.", "register");
-menu.add_item_tts("Go back to main menu.", "back");
-int result = menu.run("Would you like to create an account?", true);
+menu.add_item_tts("Register a new account", "register");
+menu.add_item_tts("Add an existing account", "existing");
+menu.add_item_tts("Back", "back");
+int result = menu.run("No account set up yet", true);
 if(result == 0 or menu.get_item_name(result) == "back")
 {
 mainmenu();
@@ -43,9 +43,13 @@ else if(menu.get_item_name(result) == "register")
 {
 register_form();
 }
+else if(menu.get_item_name(result) == "existing")
+{
+add_existing_account();
+}
 return;
 }
-speak("Logging in as "+stored_user+"...");
+speak("Connecting as "+stored_user);
 net.connect(ip, client_port);
 connectiontimer.restart();
 while(true)
@@ -55,7 +59,7 @@ event=net.request();
 wait(5);
 if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
 {
-alert("error","The server is currently down. Please try again later.");
+dlg("Could not reach the server. It may be offline.");
 connectiontimer.restart();
 mainmenu();
 }
@@ -76,11 +80,10 @@ string err_msg = get_event_message();
 connected=false;
 if(string_contains(err_msg, "account does not exist", 1) > -1)
 {
-dlg(err_msg);
 setupmenu();
-menu.add_item_tts("Register a new account.", "register");
-menu.add_item_tts("Go back to main menu.", "back");
-int result = menu.run("Would you like to create an account?", true);
+menu.add_item_tts("Register a new account", "register");
+menu.add_item_tts("Back", "back");
+int result = menu.run("Account not found on server", true);
 if(result == 0 or menu.get_item_name(result) == "back")
 {
 mainmenu();
@@ -107,6 +110,7 @@ send_reliable(1, "spawn_user "+name+" "+yversion, 0);
 sentpacket=true;
 send_reliable(0, "getversion", 0);
 send_reliable(0, "welcome", 0);
+send_reliable(0, "inv", 0);
 if(!SCRIPT_COMPILED)
 send_reliable(0, "dev", 0);
 while(true)
@@ -253,7 +257,19 @@ send_reliable(0,"health",0);
 }
 if(key_pressed(KEY_I))
 {
+if(key_down(KEY_LSHIFT) or key_down(KEY_RSHIFT))
 send_reliable(0,"inv",0);
+else
+{
+if(client_inv.length() > 0)
+{
+show_inventory_menu();
+}
+else
+{
+speak("Inventory empty. Pick up items to fill it.");
+}
+}
 }
 if(key_pressed(KEY_TAB) and !key_down(KEY_LSHIFT) and !key_down(KEY_RSHIFT))
 {
@@ -262,11 +278,11 @@ if(client_inv.length() > 0)
 inv_index++;
 if(inv_index >= int(client_inv.length()))
 inv_index = 0;
-speak(client_inv[inv_index]);
+speak(format_item_name(client_inv[inv_index])+", "+(inv_index+1)+" of "+client_inv.length());
 }
 else
 {
-speak("No items in inventory. Press I to refresh.");
+speak("Inventory empty.");
 }
 }
 if(key_pressed(KEY_TAB) and (key_down(KEY_LSHIFT) or key_down(KEY_RSHIFT)))
@@ -276,17 +292,18 @@ if(client_inv.length() > 0)
 inv_index--;
 if(inv_index < 0)
 inv_index = int(client_inv.length()) - 1;
-speak(client_inv[inv_index]);
+speak(format_item_name(client_inv[inv_index])+", "+(inv_index+1)+" of "+client_inv.length());
 }
 else
 {
-speak("No items in inventory. Press I to refresh.");
+speak("Inventory empty.");
 }
 }
 if(key_pressed(KEY_RETURN) and inv_index >= 0 and inv_index < int(client_inv.length()))
 {
-speak("Using "+client_inv[inv_index]);
-send_reliable(0, "use "+client_inv[inv_index], 0);
+string used_item = client_inv[inv_index];
+speak("Using "+format_item_name(used_item));
+send_reliable(0, "use "+used_item, 0);
 client_inv.remove_at(inv_index);
 if(inv_index >= int(client_inv.length()) and client_inv.length() > 0)
 inv_index = int(client_inv.length()) - 1;
@@ -301,11 +318,11 @@ speak("copied.");
 if(key_pressed(KEY_M))
 {
 send_reliable(0,"items",0);
-speak("scanning for items");
+speak("Scanning");
 }
 if(key_pressed(KEY_C))
 {
-speak("location: "+x+"");
+speak("Position "+x);
 }
 if(key_pressed(KEY_SLASH))
 {
@@ -316,8 +333,11 @@ if(key_pressed(KEY_ESCAPE))
 escapetimer.restart();
 escapetimes++;
 p.play_stationary("ping.ogg",false);
-speak("time "+escapetimes);
-if(escapetimes==3)
+if(escapetimes==1)
+speak("Press escape 2 more times to disconnect.");
+else if(escapetimes==2)
+speak("Press escape once more to disconnect.");
+else if(escapetimes>=3)
 {
 leavechat();
 }
@@ -347,6 +367,34 @@ wait(5);
 }
 }
 
+string format_item_name(string item)
+{
+return string_replace(item, "_", " ", true);
+}
+void show_inventory_menu()
+{
+setupmenu(false);
+for(uint i=0; i<client_inv.length(); i++)
+{
+menu.add_item_tts(format_item_name(client_inv[i]), client_inv[i]);
+}
+menu.add_item_tts("Close", "cancel");
+menu.allow_escape=true;
+int mres=menu.run("Inventory, "+client_inv.length()+" items",true);
+if(mres > 0 and menu.get_item_name(mres) != "cancel")
+{
+string used_item = menu.get_item_name(mres);
+speak("Using "+format_item_name(used_item));
+send_reliable(0,"use "+used_item,0);
+// Remove used item from local cache
+int idx = client_inv.find(used_item);
+if(idx >= 0) client_inv.remove_at(idx);
+if(inv_index >= int(client_inv.length()) and client_inv.length() > 0)
+inv_index = int(client_inv.length()) - 1;
+else if(client_inv.length() == 0)
+inv_index = -1;
+}
+}
 void netloop()
 {
 event=net.request();
@@ -408,16 +456,7 @@ for(uint i=1; i<parsed.length(); i++)
 if(parsed[i] != "cancel")
 client_inv.insert_last(parsed[i]);
 }
-setupmenu(false);
-speak("inventory menu.");
-for(uint i=0; i<client_inv.length(); i++)
-{
-menu.add_item_tts(client_inv[i], client_inv[i]);
-}
-menu.add_item_tts("cancel", "cancel");
-int mres=menu.run("select an item.",true);
-if(mres > 0 and menu.get_item_name(mres) != "cancel")
-send_reliable(0,"use "+menu.get_item_name(mres),0);
+speak(""+client_inv.length()+" items in inventory.");
 }
 else if(parsed[0]=="spawn_bullet")
 {
@@ -481,7 +520,7 @@ usound=chat.play_stationary(voice,false,true);
 
 void chatconsole()
 {
-speak("enter a message to send.");
+speak("Type a message.");
 string message;
 int cursor=0;
 string[] chat;

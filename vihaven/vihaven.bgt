@@ -25,7 +25,7 @@ int usound;
 int channels=2;
 int rectime=60000;
 bool recording;
-string name="noName"+random(0,9999), company="obsidian", version="0.3 beta";
+string name="noName"+random(0,9999), company="obsidian", version="0.4 beta";
 int last_seen_comments;
 string[] comment;
 string web="http://blinkwizard.ddns.net";
@@ -53,11 +53,11 @@ if(screen_reader_is_running(1))
 {
 install_keyhook();
 }
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 set_sound_storage("sounds.dat");
 if(!directory_exists(prefsdir))
 {
-dlg("Welcome to Obsidian! No settings configured. Continuing with default settings... press enter to continue");
+dlg("Welcome to Obsidian! Press enter to get started.");
 directory_create(prefsdir);
 }
 load_rules();
@@ -92,6 +92,19 @@ rules_text = "No rules file found. Please ensure rules.txt exists in the game di
 void load_changelog()
 {
 changelog.resize(0);
+changelog.insert_last("Version 0.4 beta - Obsidian");
+changelog.insert_last("- Fixed rules agreement not persisting between sessions");
+changelog.insert_last("- Main menu now shows account name and uses cleaner labels");
+changelog.insert_last("- Inventory auto-loads on connect, I key opens inventory menu");
+changelog.insert_last("- TAB and shift TAB cycling now shows item position");
+changelog.insert_last("- Item names display with spaces instead of underscores");
+changelog.insert_last("- Escape to disconnect now shows clear countdown feedback");
+changelog.insert_last("- Login flow offers add existing account option when no account set");
+changelog.insert_last("- Changelog and inventory menus support escape key to close");
+changelog.insert_last("- Replaced jarring alert popups with in-game dialog messages");
+changelog.insert_last("- Polished registration form labels and marked email as optional");
+changelog.insert_last("- Cleaner first-run experience and welcome flow");
+changelog.insert_last("");
 changelog.insert_last("Version 0.3 beta - Obsidian");
 changelog.insert_last("- Options menu now uses audio form controls");
 changelog.insert_last("- Login automatically uses stored account credentials");
@@ -121,31 +134,31 @@ changelog.insert_last("- Original release");
 void show_rules_screen()
 {
 setupmenu();
-speak("Welcome to Obsidian beta! Before continuing, you must read and agree to the rules.");
+speak("Before playing, please review the rules.");
 speak(rules_text);
-menu.add_item_tts("I agree to the rules.", "agree");
-menu.add_item_tts("I do not agree. Exit game.", "disagree");
+menu.add_item_tts("I agree to the rules", "agree");
+menu.add_item_tts("I do not agree", "disagree");
 int result = menu.run("Do you agree to the rules?", true);
 if(result == 0 or menu.get_item_name(result) == "disagree")
 {
-dlg("You must agree to the rules to play. Exiting.");
+dlg("You must agree to the rules to play.");
 exit();
 }
 rules_accepted = true;
 writeprefs();
-dlg("Thank you for agreeing to the rules. Welcome to Obsidian!");
 }
 void show_changelog_menu()
 {
 setupmenu();
+menu.allow_escape=true;
 for(uint i = 0; i < changelog.length(); i++)
 {
 if(changelog[i] != "")
 menu.add_item_tts(changelog[i], "", "", false);
 }
-menu.add_item_tts("Go back.", "back");
+menu.add_item_tts("Back", "back");
 menu.speak_position_information = true;
-int result = menu.run("Changelog. Use up and down arrows to read.", true);
+int result = menu.run("Changelog", true);
 }
 void setupmenu(bool music=false)
 {
@@ -171,37 +184,33 @@ menu.enable_up_and_down=true;
 void mainmenu()
 {
 setupmenu(true);
-menu.add_item_tts("Log in.","livechat");
-menu.add_item_tts("Changelog.","changelog");
+menu.add_item_tts("Play","livechat");
+menu.add_item_tts("Options", "options");
+menu.add_item_tts("Changelog","changelog");
 if(SCRIPT_COMPILED==false)
 {
-menu.add_item_tts("switch to local","switch");
-menu.add_item_tts("switch to beta server","switchbeta");
+menu.add_item_tts("Switch to local server","switch");
+menu.add_item_tts("Switch to beta server","switchbeta");
 }
-menu.add_item_tts("Options", "options");
-menu.add_item_tts("quit","fuck");
-int result=menu.run("main menu", true);
+menu.add_item_tts("Quit","quit");
+string menu_title="Obsidian";
+if(stored_user != "") menu_title="Obsidian - "+stored_user;
+int result=menu.run(menu_title, true);
 if(menu.get_item_name(result)=="switchbeta")
 {
 ip="110.22.56.156";
-speak("Beta server can now be connected. Note: please ask sightless wolf to put up the beta server.");
+speak("Beta server selected.");
+mainmenu();
 }
-if(result==0 or menu.get_item_name(result)=="fuck")
+if(result==0 or menu.get_item_name(result)=="quit")
 {
-wait(1000);
 exit();
 }
-else if(menu.get_item_name(result)=="view")
-{
-viewmenu();
-}
-else if(menu.get_item_name(result)=="post") post();
 else if(menu.get_item_name(result)=="options") options_menu();
-else if(menu.get_item_name(result)=="watcher") watcher();
 else if(menu.get_item_name(result)=="switch")
 {
 ip="localhost";
-speak("switched");
+speak("Local server selected.");
 mainmenu();
 }
 else if(menu.get_item_name(result)=="livechat")
@@ -287,7 +296,7 @@ if(SCRIPT_COMPILED==false)
 server_field = af.create_input_box("Server &address", ip);
 port_field = af.create_input_box("Server &port", ""+client_port);
 }
-int account_setup_btn = af.create_button("Account set&up");
+int account_setup_btn = af.create_button("&Register new account");
 int add_existing_btn = af.create_button("Add &existing account");
 int save_btn = af.create_button("&Save", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
@@ -321,25 +330,25 @@ if(new_port != "") client_port = string_to_number(new_port);
 }
 writeprefs();
 dlg("Settings saved.");
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
 if(af.is_pressed(account_setup_btn))
 {
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 register_form();
 return;
 }
 if(af.is_pressed(add_existing_btn))
 {
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 add_existing_account();
 return;
 }
@@ -352,10 +361,10 @@ af.create_window("Register a new account", true, true);
 int user_field = af.create_input_box("&Username");
 int pass_field = af.create_input_box("&Password", "", "*");
 int confirm_field = af.create_input_box("&Repeat password", "", "*");
-int email_field = af.create_input_box("&Email");
+int email_field = af.create_input_box("&Email, optional");
 int rules_status = af.create_status_bar("Rules", rules_text);
 int agree_cb = af.create_checkbox("I &agree to the rules", false);
-int register_btn = af.create_button("Re&gister", true);
+int register_btn = af.create_button("&Register", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
 af.focus(user_field);
 while(true)
@@ -398,14 +407,14 @@ stored_user = reg_user;
 stored_pass = reg_pass;
 stored_email = reg_email;
 writeprefs();
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 speak("connecting to server.");
 do_register_on_server(reg_user, reg_pass, reg_email);
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
@@ -421,7 +430,7 @@ event=net.request();
 wait(5);
 if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
 {
-alert("error","The server is currently down. Please try again later.");
+dlg("Could not reach the server. It may be offline.");
 connectiontimer.restart();
 mainmenu();
 }
@@ -466,14 +475,14 @@ if(check_user == "" or check_pass == "")
 dlg("Username and password are required!");
 continue;
 }
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 speak("Verifying account with server...");
 verify_and_save_account(check_user, check_pass);
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian version "+version+"");
+show_game_window("Obsidian "+version);
 options_menu();
 return;
 }
@@ -489,7 +498,7 @@ event=net.request();
 wait(5);
 if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
 {
-alert("error","The server is currently down. Please try again later.");
+dlg("Could not reach the server. It may be offline.");
 connectiontimer.restart();
 mainmenu();
 }
