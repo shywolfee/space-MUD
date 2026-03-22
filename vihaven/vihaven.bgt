@@ -1,17 +1,21 @@
 #include"includes/bullet.bgt"
 #include"includes/zone.bgt"
 #include"includes/voicechatting.bgt"
+#include "includes/chathistory.bgt"
 #include "includes/buffer.bgt"
 #include "includes/chat.bgt"
+#include "includes/dateandtime.bgt"
 #include "includes/dlg.bgt"
+#include "includes/form.bgt"
 #include "includes/m_pro.bgt"
 #include "includes/prefsmanager.bgt"
 #include "includes/sp.bgt"
+#include "includes/submenu_system.bgt"
 #include "includes/virtualizer.bgt"
 timer pingtimer;
 int x=150;
 timer walktimer;
-double yversion=0.3;
+double yversion=0.4;
 voicechatting vc;
 string passc="hackmyfuckingsystemyousonofabitch";
 dynamic_menu_pro menu;
@@ -21,7 +25,7 @@ int usound;
 int channels=2;
 int rectime=60000;
 bool recording;
-string name="noName"+random(0,9999), company="obsidian", version="0.2 beta";
+string name="noName"+random(0,9999), company="obsidian", version="0.3 beta";
 int last_seen_comments;
 string[] comment;
 string web="http://blinkwizard.ddns.net";
@@ -35,6 +39,10 @@ string[] client_inv;
 int inv_index=-1;
 string[] changelog;
 string rules_text;
+string stored_user="";
+string stored_pass="";
+string stored_email="";
+audio_form af;
 void main()
 {
 if(file_exists(prefsdir+"/name.dat"))
@@ -84,6 +92,16 @@ rules_text = "No rules file found. Please ensure rules.txt exists in the game di
 void load_changelog()
 {
 changelog.resize(0);
+changelog.insert_last("Version 0.3 beta - Obsidian");
+changelog.insert_last("- Options menu now uses audio form controls");
+changelog.insert_last("- Login automatically uses stored account credentials");
+changelog.insert_last("- Login offers to register if no account exists on server");
+changelog.insert_last("- Registration form: username, password, confirm, email, rules checkbox");
+changelog.insert_last("- Account credentials stored in encrypted settings file");
+changelog.insert_last("- Add existing account option verifies with server before saving");
+changelog.insert_last("- Added form, buffer, dateandtime, and submenu system includes");
+changelog.insert_last("- Server now stores email on registration");
+changelog.insert_last("");
 changelog.insert_last("Version 0.2 beta - Obsidian");
 changelog.insert_last("- Renamed game from VI Haven to Obsidian");
 changelog.insert_last("- Added encrypted accounts system with registration and login");
@@ -153,14 +171,13 @@ void mainmenu()
 {
 setupmenu(true);
 menu.add_item_tts("Log in.","livechat");
-menu.add_item_tts("Register.","register");
 menu.add_item_tts("Changelog.","changelog");
 if(SCRIPT_COMPILED==false)
 {
 menu.add_item_tts("switch to local","switch");
 menu.add_item_tts("switch to beta server","switchbeta");
 }
-menu.add_item_tts("customization", "options");
+menu.add_item_tts("Options", "options");
 menu.add_item_tts("quit","fuck");
 int result=menu.run("main menu", true);
 if(menu.get_item_name(result)=="switchbeta")
@@ -178,7 +195,7 @@ else if(menu.get_item_name(result)=="view")
 viewmenu();
 }
 else if(menu.get_item_name(result)=="post") post();
-else if(menu.get_item_name(result)=="options") settings_menu();
+else if(menu.get_item_name(result)=="options") options_menu();
 else if(menu.get_item_name(result)=="watcher") watcher();
 else if(menu.get_item_name(result)=="switch")
 {
@@ -188,13 +205,7 @@ mainmenu();
 }
 else if(menu.get_item_name(result)=="livechat")
 {
-speak("connecting to server.");
 login();
-}
-else if(menu.get_item_name(result)=="register")
-{
-speak("connecting to server.");
-register_account_client();
 }
 else if(menu.get_item_name(result)=="changelog")
 {
@@ -262,85 +273,247 @@ if(!watcher_active) mainmenu();
 }
 }
 
-void settings_menu()
+void options_menu()
 {
-setupmenu(true);
-string temp;
-if(name=="")
-{
-temp="set name";
-}
-else
-temp="Set name.";
-menu.add_item_tts(temp, "setname");
-menu.add_item_tts("Account setup.", "accountsetup");
+af.reset();
+af.create_window("Options", true, true);
+int name_field = af.create_input_box("&Name", name);
+int scroll_cb = af.create_checkbox("Enable menu &side scrolling", menuscroll==1);
+int server_field = -1;
+int port_field = -1;
 if(SCRIPT_COMPILED==false)
 {
-menu.add_item_tts("Set server address. Currently: "+ip, "setserver");
-menu.add_item_tts("Set server port. Currently: "+client_port, "setport");
+server_field = af.create_input_box("Server &address", ip);
+port_field = af.create_input_box("Server &port", ""+client_port);
 }
-if(menuscroll==0)
-menu.add_item_tts("enable menu side scrolling", "esc");
-else if(menuscroll==1)
-menu.add_item_tts("disable menu side scrolling", "dsc");
-menu.add_item_tts("go back", "back");
-int result=menu.run("customization menu", true);
-if(result==0 or menu.get_item_name(result)=="back") mainmenu();
-else if(menu.get_item_name(result)=="setname") setname();
-else if(menu.get_item_name(result)=="accountsetup") account_setup();
-else if(menu.get_item_name(result)=="setserver")
+int account_setup_btn = af.create_button("Account set&up");
+int add_existing_btn = af.create_button("Add &existing account");
+int save_btn = af.create_button("&Save", true);
+int cancel_btn = af.create_button("&Cancel", false, true);
+af.focus(name_field);
+while(true)
 {
-string newip = v.input("Enter the server address. Current: "+ip);
-if(newip != "")
+af.monitor();
+wait(5);
+if(af.is_pressed(save_btn))
 {
-ip = newip;
-speak("Server set to "+ip);
+string new_name = af.get_text(name_field);
+if(new_name != "" and string_contains(new_name, " ", 1) == -1)
+{
+name = new_name;
 }
-settings_menu();
-}
-else if(menu.get_item_name(result)=="setport")
+else if(string_contains(new_name, " ", 1) > -1)
 {
-string newport = v.input("Enter the server port. Current: "+port);
-if(newport != "")
-{
-client_port = string_to_number(newport);
-speak("Port set to "+client_port);
+dlg("Your name must not have spaces!");
+continue;
 }
-settings_menu();
-}
-else if(menu.get_item_name(result)=="esc")
+if(af.is_checked(scroll_cb))
+menuscroll = 1;
+else
+menuscroll = 0;
+if(SCRIPT_COMPILED==false)
 {
-menuscroll=1;
+string new_ip = af.get_text(server_field);
+if(new_ip != "") ip = new_ip;
+string new_port = af.get_text(port_field);
+if(new_port != "") client_port = string_to_number(new_port);
+}
 writeprefs();
-settings_menu();
-}
-else if(menu.get_item_name(result)=="dsc")
-{
-menuscroll=0;
-writeprefs();
-settings_menu();
-}
-}
-void account_setup()
-{
-if(name == "" or name == "noName"+random(0,9999))
-{
-dlg("You need to set your name first before setting up an account.");
-setname();
+dlg("Settings saved.");
+show_game_window("Obsidian version "+version+"");
+mainmenu();
 return;
 }
-setupmenu();
-menu.add_item_tts("Register a new account.", "register");
-menu.add_item_tts("Go back.", "back");
-int result = menu.run("Account setup. Your current name is "+name+".", true);
-if(result == 0 or menu.get_item_name(result) == "back")
+if(af.is_pressed(cancel_btn))
 {
-settings_menu();
+show_game_window("Obsidian version "+version+"");
+mainmenu();
+return;
 }
-else if(menu.get_item_name(result) == "register")
+if(af.is_pressed(account_setup_btn))
 {
+show_game_window("Obsidian version "+version+"");
+register_form();
+return;
+}
+if(af.is_pressed(add_existing_btn))
+{
+show_game_window("Obsidian version "+version+"");
+add_existing_account();
+return;
+}
+}
+}
+void register_form()
+{
+af.reset();
+af.create_window("Register a new account", true, true);
+int user_field = af.create_input_box("&Username");
+int pass_field = af.create_input_box("&Password", "", "*");
+int confirm_field = af.create_input_box("&Repeat password", "", "*");
+int email_field = af.create_input_box("&Email");
+int rules_status = af.create_status_bar("Rules", rules_text);
+int agree_cb = af.create_checkbox("I &agree to the rules", false);
+int register_btn = af.create_button("Re&gister", true);
+int cancel_btn = af.create_button("&Cancel", false, true);
+af.focus(user_field);
+while(true)
+{
+af.monitor();
+wait(5);
+if(af.is_pressed(register_btn))
+{
+string reg_user = af.get_text(user_field);
+string reg_pass = af.get_text(pass_field);
+string reg_confirm = af.get_text(confirm_field);
+string reg_email = af.get_text(email_field);
+if(reg_user == "")
+{
+dlg("Username cannot be empty!");
+continue;
+}
+if(string_contains(reg_user, " ", 1) > -1)
+{
+dlg("Username must not have spaces!");
+continue;
+}
+if(reg_pass == "" or reg_pass.length() < 3)
+{
+dlg("Password must be at least 3 characters!");
+continue;
+}
+if(reg_pass != reg_confirm)
+{
+dlg("Passwords do not match!");
+continue;
+}
+if(!af.is_checked(agree_cb))
+{
+dlg("You must agree to the rules to register!");
+continue;
+}
+name = reg_user;
+stored_user = reg_user;
+stored_pass = reg_pass;
+stored_email = reg_email;
+writeprefs();
+show_game_window("Obsidian version "+version+"");
 speak("connecting to server.");
-register_account_client();
+do_register_on_server(reg_user, reg_pass, reg_email);
+return;
+}
+if(af.is_pressed(cancel_btn))
+{
+show_game_window("Obsidian version "+version+"");
+mainmenu();
+return;
+}
+}
+}
+void do_register_on_server(string reg_user, string reg_pass, string reg_email)
+{
+net.connect(ip, client_port);
+connectiontimer.restart();
+while(true)
+{
+event=net.request();
+wait(5);
+if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
+{
+alert("error","The server is currently down. Please try again later.");
+connectiontimer.restart();
+mainmenu();
+}
+else if(event.type==event_connect and connected==false)
+{
+send_reliable(0, "register "+reg_user+" "+reg_pass+" "+yversion+" "+reg_email, 0);
+connected=true;
+}
+if(event.type==event_receive and get_event_message()=="registered")
+{
+dlg("Account registered successfully! You can now log in.");
+connected=false;
+mainmenu();
+}
+else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
+{
+dlg(get_event_message());
+connected=false;
+mainmenu();
+}
+}
+}
+void add_existing_account()
+{
+af.reset();
+af.create_window("Add an existing account", true, true);
+int user_field = af.create_input_box("&Username");
+int pass_field = af.create_input_box("&Password", "", "*");
+int login_btn = af.create_button("&Verify and save", true);
+int cancel_btn = af.create_button("&Cancel", false, true);
+af.focus(user_field);
+while(true)
+{
+af.monitor();
+wait(5);
+if(af.is_pressed(login_btn))
+{
+string check_user = af.get_text(user_field);
+string check_pass = af.get_text(pass_field);
+if(check_user == "" or check_pass == "")
+{
+dlg("Username and password are required!");
+continue;
+}
+show_game_window("Obsidian version "+version+"");
+speak("Verifying account with server...");
+verify_and_save_account(check_user, check_pass);
+return;
+}
+if(af.is_pressed(cancel_btn))
+{
+show_game_window("Obsidian version "+version+"");
+options_menu();
+return;
+}
+}
+}
+void verify_and_save_account(string check_user, string check_pass)
+{
+net.connect(ip, client_port);
+connectiontimer.restart();
+while(true)
+{
+event=net.request();
+wait(5);
+if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
+{
+alert("error","The server is currently down. Please try again later.");
+connectiontimer.restart();
+mainmenu();
+}
+else if(event.type==event_connect and connected==false)
+{
+send_reliable(0, "login "+check_user+" "+check_pass+" "+yversion, 0);
+connected=true;
+}
+if(event.type==event_receive and get_event_message()=="done")
+{
+name = check_user;
+stored_user = check_user;
+stored_pass = check_pass;
+writeprefs();
+dlg("Account verified and saved! You can now log in directly.");
+send_reliable(0, "disconnect", 0);
+connected=false;
+mainmenu();
+}
+else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
+{
+dlg(get_event_message());
+connected=false;
+mainmenu();
+}
 }
 }
 

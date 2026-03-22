@@ -10,7 +10,7 @@ int port=38294, userlimit=200, write_time=10000;
 timer write_timer;
 network net;
 int filterstuff=1;
-string version="0.2 beta", motd;
+string version="0.3 beta", motd;
 network_event event;
 void main()
 {
@@ -119,7 +119,9 @@ login(parsed[1], parsed[2], string_to_number(parsed[3]));
 }
 else if(parsed[0]=="register" and parsed.length()>3)
 {
-register_user(parsed[1], parsed[2], string_to_number(parsed[3]));
+string email = "";
+if(parsed.length() > 4) email = parsed[4];
+register_user(parsed[1], parsed[2], string_to_number(parsed[3]), email);
 }
 else  if(parsed[0]=="spawn_user" and parsed.length()>2)
 {
@@ -570,7 +572,7 @@ if(cont==true)
 send_reliable(event.peer_id, "done", 0);
 }
 }
-void register_user(string name, string password, double ver)
+void register_user(string name, string password, double ver, string email="")
 {
 if(account_exists(name))
 {
@@ -594,6 +596,13 @@ return;
 }
 if(register_account(name, password))
 {
+if(email != "")
+{
+file ef;
+ef.open("accounts/"+name+".email", "wb");
+ef.write(string_encrypt(email, "rscs123"));
+ef.close();
+}
 send_reliable(event.peer_id, "registered", 0);
 }
 else

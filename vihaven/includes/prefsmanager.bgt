@@ -25,6 +25,12 @@ if(parameters.find("menuscrolling")!=-1)
 menuscroll=string_to_number(values[parameters.find("menuscrolling")]);
 if(parameters.find("rules_accepted")!=-1)
 rules_accepted=(values[parameters.find("rules_accepted")]=="1");
+if(parameters.find("stored_user")!=-1)
+stored_user=values[parameters.find("stored_user")];
+if(parameters.find("stored_pass")!=-1)
+stored_pass=values[parameters.find("stored_pass")];
+if(parameters.find("stored_email")!=-1)
+stored_email=values[parameters.find("stored_email")];
 }
 void writeprefs()
 {
@@ -36,7 +42,10 @@ if(rules_accepted) ra="1";
 what="name="+name+"
 lastcoms="+last_seen_comments+"
 menuscrolling="+menuscroll+"
-rules_accepted="+ra+"";
+rules_accepted="+ra+"
+stored_user="+stored_user+"
+stored_pass="+stored_pass+"
+stored_email="+stored_email+"";
 p.write(string_encrypt(what, "fucking comments"));
 p.close();
 }

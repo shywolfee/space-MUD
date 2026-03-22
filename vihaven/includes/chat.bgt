@@ -28,20 +28,24 @@ string ip="sightlesswolf.com"; // enter the ip here to connect to.
 int client_port=38294;
 void login()
 {
-if(name=="")
+if(stored_user == "" or stored_pass == "")
 {
-dlg("error! You may not login with no name. Please go to settings and set your name!");
+dlg("No account found. Please set up an account first.");
+setupmenu();
+menu.add_item_tts("Register a new account.", "register");
+menu.add_item_tts("Go back to main menu.", "back");
+int result = menu.run("Would you like to create an account?", true);
+if(result == 0 or menu.get_item_name(result) == "back")
+{
 mainmenu();
 }
-else
+else if(menu.get_item_name(result) == "register")
 {
-string password = v.input("Enter your password.");
-if(password == "")
-{
-dlg("Login canceled.");
-mainmenu();
+register_form();
 }
-speak("Please wait...");
+return;
+}
+speak("Logging in as "+stored_user+"...");
 net.connect(ip, client_port);
 connectiontimer.restart();
 while(true)
@@ -57,86 +61,39 @@ mainmenu();
 }
 else if(event.type==event_connect and connected==false)
 {
-send_reliable(0, "login "+name+" "+password+" "+yversion, 0);
+send_reliable(0, "login "+stored_user+" "+stored_pass+" "+yversion, 0);
 p.play_stationary("amb.ogg",true);
 connected=true;
 }
-if(event.type==event_receive and get_event_message()=="done") livechat();
+if(event.type==event_receive and get_event_message()=="done")
+{
+name = stored_user;
+livechat();
+}
 else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
 {
-dlg(get_event_message());
+string err_msg = get_event_message();
 connected=false;
+if(string_contains(err_msg, "account does not exist", 1) > -1)
+{
+dlg(err_msg);
+setupmenu();
+menu.add_item_tts("Register a new account.", "register");
+menu.add_item_tts("Go back to main menu.", "back");
+int result = menu.run("Would you like to create an account?", true);
+if(result == 0 or menu.get_item_name(result) == "back")
+{
 mainmenu();
 }
-}
-}
-}
-void register_account_client()
+else if(menu.get_item_name(result) == "register")
 {
-if(name=="")
-{
-dlg("error! You must set your name first. Please go to settings and set your name!");
-mainmenu();
+register_form();
+}
+return;
 }
 else
 {
-setupmenu();
-speak("Before registering, you must agree to the rules.");
-speak(rules_text);
-menu.add_item_tts("I agree to the rules.", "agree");
-menu.add_item_tts("I do not agree. Cancel registration.", "disagree");
-int rresult = menu.run("Do you agree to the rules?", true);
-if(rresult == 0 or menu.get_item_name(rresult) == "disagree")
-{
-dlg("You must agree to the rules to register. Registration canceled.");
-mainmenu();
-}
-string password = v.input("Choose a password for your account. Must be at least 3 characters.");
-if(password == "")
-{
-dlg("Registration canceled.");
-mainmenu();
-}
-if(password.length() < 3)
-{
-dlg("Password must be at least 3 characters!");
-mainmenu();
-}
-string confirm = v.input("Confirm your password.");
-if(confirm != password)
-{
-dlg("Passwords do not match!");
-mainmenu();
-}
-speak("Please wait...");
-net.connect(ip, client_port);
-connectiontimer.restart();
-while(true)
-{
-chat.update_listener_1d(x);
-event=net.request();
-wait(5);
-if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
-{
-alert("error","The server is currently down. Please try again later.");
-connectiontimer.restart();
-mainmenu();
-}
-else if(event.type==event_connect and connected==false)
-{
-send_reliable(0, "register "+name+" "+password+" "+yversion, 0);
-connected=true;
-}
-if(event.type==event_receive and get_event_message()=="registered")
-{
-dlg("Account registered successfully! You can now log in.");
-connected=false;
-mainmenu();
-}
-else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
-{
-dlg(get_event_message());
-connected=false;
+dlg(err_msg);
 mainmenu();
 }
 }
