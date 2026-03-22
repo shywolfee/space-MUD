@@ -1,0 +1,15 @@
+tts_voice v;
+void main()
+{
+show_game_window("releasing!");
+directory_delete("VI haven beta");
+directory_create("VI haven beta");
+file_copy("readme.txt","VI haven beta/readme.txt",true);
+file_copy("changelog.txt", "VI haven beta/changelog.txt", true);
+file_copy("nvdaControllerClient32.dll","VI haven beta/nvdaControllerClient32.dll",true);
+file_copy("vihaven.exe", "VI haven beta/client.exe", true);
+file_copy("sounds.dat","VI haven beta/sounds.dat",true);
+v.speak_wait("done");
+alert("done","Finisheed!");
+exit();
+}

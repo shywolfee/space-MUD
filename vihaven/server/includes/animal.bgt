@@ -1,0 +1,99 @@
+timer animalspawntimer;
+animal@[]animals;
+class animal
+{
+string type;
+int attackspeed;
+int walkspeed;
+int x;
+int health;
+int attack;
+int range;
+int course=0;
+timer walktimer;
+timer attacktimer;
+animal(string atype)
+{
+type=atype;
+x=random(50,250);
+course=random(1,2);
+if(type=="hypersoldier")
+{
+walkspeed=80;
+attackspeed=100;
+attack=100;
+range=2;
+health=800;
+}
+if(type=="swordfighter")
+{
+walkspeed=190;
+attackspeed=600;
+attack=100;
+range=8;
+health=1000;
+}
+if(type=="wolf")
+{
+walkspeed=250;
+attackspeed=800;
+attack=200;
+range=5;
+health=200;
+}
+}
+}
+void animalloop()
+{
+for(uint i=0; i<animals.length; i++)
+{
+if(animals[i].walktimer.elapsed>animals[i].walkspeed)
+{
+animals[i].walktimer.restart();
+if(animals[i].course==1 and animals[i].x>1)
+{
+animals[i].x--;
+}
+if(animals[i].course==2 and animals[i].x<300)
+{
+animals[i].x++;
+}
+playsound(-1,animals[i].x,"step"+random(1,5)+".ogg");
+int setup=random(1,20);
+if(setup==1)
+{
+animals[i].course=random(1,2);
+}
+
+}
+if(animals[i].attacktimer.elapsed>animals[i].attackspeed)
+{
+for(uint j=0; j<users.length(); j++)
+{
+if(users[j].x>=animals[i].x-animals[i].range and users[j].x<=animals[i].x+animals[i].range)
+{
+animals[i].attacktimer.restart();
+playsound(-1,animals[i].x,animals[i].type+"attack.ogg");
+if(users[j].weapon=="sword" and animals[i].type=="swordfighter")
+{
+int setup=random(1,5);
+if(setup!=1)
+{
+playsound(-1,users[j].x,"parry"+random(1,26)+".ogg");
+continue;
+}
+}
+if(users[j].jumping==true)
+{
+playsound(j,users[j].x,"fall.ogg");
+users[j].jumping=false;
+send_reliable(users[j].peer_id,"fall",0);
+}
+users[j].health-=animals[i].attack;
+users[j].lasthit=animals[i].type;
+break;
+}
+}
+}
+}
+}

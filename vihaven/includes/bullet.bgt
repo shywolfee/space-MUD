@@ -1,0 +1,68 @@
+timer dodgetimer;
+bullet@[]bullets;
+class bullet
+{
+string user;
+int range;
+int x;
+int damage;
+string name;
+int speed;
+timer btimer;
+bullet(string bname, int bx, int brange, int bdamage, int bspeed,string buser)
+{
+user=buser;
+x=bx;
+name=bname;
+range=brange;
+damage=bdamage;
+speed=bspeed;
+}
+}
+void bulletloop()
+{
+for(uint i=0; i<bullets.length(); i++)
+{
+if(bullets[i].btimer.elapsed>bullets[i].speed)
+{
+if(x<bullets[i].x+bullets[i].range and x>bullets[i].x-bullets[i].range)
+{
+p.play_stationary(bullets[i].name+"hit.ogg",false);
+send_reliable(0,"hit "+bullets[i].damage,0);
+send_reliable(0,"playsoundnohere "+bullets[i].name+"hit.ogg",0);
+send_reliable(0,"lasthit "+bullets[i].user+"'s_"+bullets[i].name,0);
+}
+bullets.remove_at(i);
+}
+}
+}
+void dodgebullet()
+{
+if(dodgetimer.elapsed>200)
+{
+dodgetimer.restart();
+int dodgechance=random(1,7);
+if(dodgechance==1)
+{
+speak("Dodge failed!");
+p.play_stationary("dodgefail.ogg",false);
+return;
+}
+
+for(uint i=0; i<bullets.length(); i++)
+{
+
+if(bullets[i].name=="sword" or bullets[i].name=="knife" or bullets[i].name=="throwing_knives")
+{
+p.play_stationary("parry"+random(1,26)+".ogg",false);
+send_reliable(0,"playsoundnohere parry"+random(1,26)+".ogg",0);
+}
+else
+{
+p.play_stationary("dodgebullet.ogg",false);
+send_reliable(0,"playsoundnohere dodgebullet.ogg",0);
+}
+bullets.remove_at(i);
+}
+}
+}

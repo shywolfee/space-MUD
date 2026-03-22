@@ -1,0 +1,18 @@
+item@[]items(0);
+class item
+{
+int x;
+item(int ix)
+{
+x=ix;
+}
+}
+void spawnitem(int sx)
+{
+item i1(sx);
+items.insert_last(i1);
+}
+void clearitems()
+{
+items.resize(0);
+}

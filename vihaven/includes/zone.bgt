@@ -1,0 +1,30 @@
+string currentzone="battlefield";
+zone@[]zones(0);
+class zone
+{
+string name;
+int minx,maxx;
+zone (string zname, int zminx, int zmaxx)
+{
+name=zname;
+minx=zminx;
+maxx=zmaxx;
+}
+}
+void zloop()
+{
+for(uint i=0; i<zones.length; i++)
+{
+if(x>=zones[i].minx and x<=zones[i].maxx and currentzone!=zones[i].name)
+{
+speak(zones[i].name);
+currentzone=zones[i].name;
+break;
+}
+}
+}
+void newzone(string name,int minx,int maxx)
+{
+zone z1(name,minx,maxx);
+zones.insert_last(z1);
+}

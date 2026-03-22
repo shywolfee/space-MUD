@@ -1,0 +1,37 @@
+//making a prefs reader
+void readprefs()
+{
+file p;
+p.open(prefsdir+"/settings.dat", "rb");
+string prefs=p.read();
+prefs=string_decrypt(prefs, "fucking comments");
+p.close();
+string[] parameters=string_split(prefs, "\r\n", true);
+string[] values;
+for(int i=0; i<parameters.length(); i++)
+{
+values.insert_at(i, string_replace(parameters[i], string_left(parameters[i], string_contains(parameters[i], "=", 1)+1), "", true));
+parameters[i]=string_replace(parameters[i], "="+values[i], "", true);
+}
+if(parameters.find("name")!=-1)
+{
+name=values[parameters.find("name")];
+}
+if(parameters.find("lastcoms")!=-1)
+{
+last_seen_comments=string_to_number(values[parameters.find("lastcoms")]);
+}
+if(parameters.find("menuscrolling")!=-1)
+menuscroll=string_to_number(values[parameters.find("menuscrolling")]);
+}
+void writeprefs()
+{
+file p;
+p.open(prefsdir+"/settings.dat", "wb");
+string what;
+what="name="+name+"
+lastcoms="+last_seen_comments+"
+menuscrolling="+menuscroll+"";
+p.write(string_encrypt(what, "fucking comments"));
+p.close();
+}
