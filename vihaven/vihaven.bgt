@@ -1,0 +1,338 @@
+#include"includes/bullet.bgt"
+#include"includes/zone.bgt"
+#include"includes/voicechatting.bgt"
+#include "includes/buffer.bgt"
+#include "includes/chat.bgt"
+#include "includes/dlg.bgt"
+#include "includes/m_pro.bgt"
+#include "includes/prefsmanager.bgt"
+#include "includes/sp.bgt"
+#include "includes/virtualizer.bgt"
+timer pingtimer;
+int x=150;
+timer walktimer;
+double yversion=0.2;
+voicechatting vc;
+string passc="hackmyfuckingsystemyousonofabitch";
+dynamic_menu_pro menu;
+bool testing=false;
+string prefsdir=DIRECTORY_APPDATA+"/"+"Sightless wolf productions"+"/VI haven";
+int usound;
+int channels=2;
+int rectime=60000;
+bool recording;
+string name="noName"+random(0,9999), company="sightlesswolf", version="0.17 revival patch 1";
+int last_seen_comments;
+string[] comment;
+string web="http://blinkwizard.ddns.net";
+instance game("system");
+sound_pool p, chat;
+virtualizer v;
+int menuscroll;
+bool sentpacket=false;
+void main()
+{
+if(file_exists(prefsdir+"/name.dat"))
+file_delete(prefsdir+"/name.dat");
+if(file_exists(prefsdir+"/last.dat"))
+file_delete(prefsdir+"/last.dat");
+if(screen_reader_is_running(1))
+{
+install_keyhook();
+}
+show_game_window("VI haven  version "+version+"");
+set_sound_storage("sounds.dat");
+if(!directory_exists(prefsdir))
+dlg("error! No settings configured. This could be because I updated the way settings are saved, or you are running this for the first time. Continuing with default settings...press enter to continue");
+directory_create(prefsdir);
+readprefs();
+if(game.is_already_running) exit();
+wait(100);
+if(screen_reader_is_running(1))
+install_keyhook();
+net.setup_client(3, 500);
+newzone("battlefield",1,300);
+mainmenu();
+}
+void setupmenu(bool music=false)
+{
+menu.reset(false);
+menu.allow_escape=false;
+menu.wrap=false;
+menu.enable_home_and_end=true;
+menu.click_sound="menuclick.wav";
+menu.enter_sound="menuenter.wav";
+if(menuscroll==1)
+{
+menu.enable_side_scrolling=true;
+menu.enable_up_and_down=true;
+menu.enable_left_and_right=true;
+}
+else
+{
+menu.enable_side_scrolling=false;
+menu.enable_left_and_right=false;
+menu.enable_up_and_down=true;
+}
+}
+void mainmenu()
+{
+setupmenu(true);
+menu.add_item_tts("Log in.","livechat");
+menu.add_item_tts("Register.","register");
+if(SCRIPT_COMPILED==false)
+{
+menu.add_item_tts("switch to local","switch");
+menu.add_item_tts("switch to beta server","switchbeta");
+}
+menu.add_item_tts("customization", "options");
+menu.add_item_tts("quit","fuck");
+int result=menu.run("main menu", true);
+if(menu.get_item_name(result)=="switchbeta")
+{
+ip="110.22.56.156";
+speak("Beta server can now be connected. Note: please ask sightless wolf to put up the beta server.");
+}
+if(result==0 or menu.get_item_name(result)=="fuck")
+{
+wait(1000);
+exit();
+}
+else if(menu.get_item_name(result)=="view")
+{
+viewmenu();
+}
+else if(menu.get_item_name(result)=="post") post();
+else if(menu.get_item_name(result)=="options") settings_menu();
+else if(menu.get_item_name(result)=="watcher") watcher();
+else if(menu.get_item_name(result)=="switch")
+{
+ip="localhost";
+speak("switched");
+mainmenu();
+}
+else if(menu.get_item_name(result)=="livechat")
+{
+speak("connecting to server.");
+login();
+}
+else if(menu.get_item_name(result)=="register")
+{
+speak("connecting to server.");
+register_account_client();
+}
+}
+void viewmenu()
+{
+setupmenu();
+string comments=url_get(web+"/cm.txt");
+comment=string_split(comments, "\r\n", true);
+/*
+if(comment[0]=="")
+{
+dlg("error: no comments found.");
+mainmenu();
+}
+else
+*/
+for(uint stuff=0; stuff<comment.length(); stuff++)
+{
+if(comment[stuff]!="") menu.add_item_tts(comment[stuff], "", "", false);
+}
+menu.add_item_tts("go back", "back");
+check_for_comments(false);
+menu.speak_position_information=true;
+int result=menu.run("comments menu. press up and down arrow to read.", true);
+if(result==0 or menu.get_item_name(result)=="back")
+{
+last_seen_comments=comment.length();
+file f;
+f.open(prefsdir+"/last.dat", "wb");
+f.write(last_seen_comments);
+f.close();
+mainmenu();
+}
+}
+void post(bool watcher_active=false)
+{
+if(string_to_lower_case(name)=="ivan"&&SCRIPT_COMPILED)
+{
+dlg("name is not valid!");
+exit();
+}
+if(name=="")
+{
+dlg("sorry, but you can not post with out setting your name");
+mainmenu();
+}
+else
+{
+string comment=v.input("enter your comment here.");
+if(comment=="")
+{
+dlg("can not post an empty comment!");
+mainmenu();
+}
+else
+{
+comment+=" posted from BWComments lodge version "+yversion;
+dlg(url_post(web+"/cm.php", "yourname="+name+"&yourcomment="+comment+"&passkey="+passc+"&version="+version));
+if(!watcher_active) mainmenu();
+}
+}
+}
+
+void settings_menu()
+{
+setupmenu(true);
+string temp;
+if(name=="")
+{
+temp="set name";
+}
+else
+temp="Set name.";
+menu.add_item_tts(temp, "setname");
+if(menuscroll==0)
+menu.add_item_tts("enable menu side scrolling", "esc");
+else if(menuscroll==1)
+menu.add_item_tts("disable menu side scrolling", "dsc");
+menu.add_item_tts("go back", "back");
+int result=menu.run("customization menu", true);
+if(result==0 or menu.get_item_name(result)=="back") mainmenu();
+else if(menu.get_item_name(result)=="setname") setname();
+else if(menu.get_item_name(result)=="esc")
+{
+menuscroll=1;
+writeprefs();
+settings_menu();
+}
+else if(menu.get_item_name(result)=="dsc")
+{
+menuscroll=0;
+writeprefs();
+settings_menu();
+}
+}
+
+void checkname()
+{
+file f;
+if(file_exists(prefsdir+"/name.dat"))
+{
+f.open(prefsdir+"/name.dat", "rb");
+name=f.read();
+f.close();
+}
+}
+void setname()
+{
+string name2=v.input("enter your name to be set");
+if(string_contains(name2," ",1)>-1)
+{
+dlg("Your name must not have spaces!");
+mainmenu();
+}
+if(name2=="")
+{
+mainmenu();
+}
+else
+{
+name=name2;
+writeprefs();
+dlg("success: you have set your name to "+name);
+mainmenu();
+}
+}
+
+void watcher()
+{
+timer comment_timer;
+int comment_time=5000;
+while(true)
+{
+if(comment_timer.elapsed>comment_time)
+{
+comment_timer.restart();
+string content=url_get(web+"/cm.txt");
+comment=string_split(content, "\r\n", true);
+check_for_comments(true);
+}
+if(key_pressed(KEY_RETURN))
+{
+comment_timer.pause();
+post(true);
+comment_timer.resume();
+}
+if(key_pressed(KEY_ESCAPE))
+exit();
+wait(5);
+}
+}
+void check_for_comments(bool shoulditspeak)
+{
+int new=comment.length()-last_seen_comments;
+if(new!=0)
+{
+if(shoulditspeak)
+{
+p.play_stationary("newcomment.wav", false);
+speak("there are "+new+" new comments", false);
+}
+}
+last_seen_comments=comment.length();
+if(new>0 and shoulditspeak)
+for(int i=new; i>0; i--)
+speak(comment[comment.length()-i], false);
+writeprefs();
+}
+string soundsmenu()
+{
+if(!directory_exists("upsounds"))
+{
+directory_create("upsounds");
+speak("No upsounds folder was found. It has now been created, you may put your files in it.");
+return "";
+}
+string[] soundfiles=find_files("upsounds/*.ogg");
+if(soundfiles.length<=0)
+{
+speak("No files found in upsounds");
+return "";
+}
+setupmenu();
+menu.enable_first_letter_navigation=true;
+menu.speak_position_information=true;
+for(uint i=0; i<soundfiles.length; i++)
+{
+menu.add_item_tts(string_replace(soundfiles[i],".ogg","",true),soundfiles[i]);
+}
+int mres=menu.run("Choose a sound file to send, there are "+soundfiles.length()+" sounds",true);
+if(mres<=0)
+{
+return "";
+}
+else return menu.get_item_name(mres);
+}
+
+
+void uploadsound()
+{
+string sf=soundsmenu();
+if(sf!="")
+{
+file fr;
+fr.open("upsounds/"+sf,"rb");
+send_reliable(0,"cs_sound "+fr.read(),2);
+fr.close();
+}
+}
+string get_location(int number)
+{
+if(number>=0 and number<=300)
+{
+return ""+number+", fighting in the battlefield";
+}
+return "";
+}

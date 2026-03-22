@@ -1,0 +1,593 @@
+int rangedslot=0;
+timer escapetimer;
+int escapetimes;
+timer disarmtimer;
+timer aircushiontimer;
+bool aircushion=false;
+bool encrypting=true, connected, terminating, exiting;
+network net;
+network_event event;
+int walkspeed=199;
+timer jumptimer;
+bool jumping=false;
+timer connectiontimer, rectimer, terminating_timer, exittimer;
+int pistolslot=1;
+int meleeslot=2;
+int connectingtime=10000, terminating_time=1500, exittime=3000;
+bool send_reliable(int  peer_id, string packet, int channel)
+{
+if(encrypting) packet=string_encrypt(packet, "rscs123");
+return net.send_reliable(peer_id, packet, channel);
+}
+string get_event_message()
+{
+if(encrypting) return string_decrypt(event.message, "rscs123");
+else return event.message;
+}
+string ip="sightlesswolf.com"; // enter the ip here to connect to.
+const int port=38294;
+void login()
+{
+if(name=="")
+{
+dlg("error! You may not login with no name. Please go to settings and set your name!");
+mainmenu();
+}
+else
+{
+string password = v.input("Enter your password.");
+if(password == "")
+{
+dlg("Login canceled.");
+mainmenu();
+}
+speak("Please wait...");
+net.connect(ip, port);
+connectiontimer.restart();
+while(true)
+{
+chat.update_listener_1d(x);
+event=net.request();
+wait(5);
+if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
+{
+alert("error","The server is currently down. Please try again later.");
+connectiontimer.restart();
+mainmenu();
+}
+else if(event.type==event_connect and connected==false)
+{
+send_reliable(0, "login "+name+" "+password+" "+yversion, 0);
+p.play_stationary("amb.ogg",true);
+connected=true;
+}
+if(event.type==event_receive and get_event_message()=="done") livechat();
+else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
+{
+dlg(get_event_message());
+connected=false;
+mainmenu();
+}
+}
+}
+}
+void register_account_client()
+{
+if(name=="")
+{
+dlg("error! You must set your name first. Please go to settings and set your name!");
+mainmenu();
+}
+else
+{
+string password = v.input("Choose a password for your account. Must be at least 3 characters.");
+if(password == "")
+{
+dlg("Registration canceled.");
+mainmenu();
+}
+if(password.length() < 3)
+{
+dlg("Password must be at least 3 characters!");
+mainmenu();
+}
+string confirm = v.input("Confirm your password.");
+if(confirm != password)
+{
+dlg("Passwords do not match!");
+mainmenu();
+}
+speak("Please wait...");
+net.connect(ip, port);
+connectiontimer.restart();
+while(true)
+{
+chat.update_listener_1d(x);
+event=net.request();
+wait(5);
+if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
+{
+alert("error","The server is currently down. Please try again later.");
+connectiontimer.restart();
+mainmenu();
+}
+else if(event.type==event_connect and connected==false)
+{
+send_reliable(0, "register "+name+" "+password+" "+yversion, 0);
+connected=true;
+}
+if(event.type==event_receive and get_event_message()=="registered")
+{
+dlg("Account registered successfully! You can now log in.");
+connected=false;
+mainmenu();
+}
+else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
+{
+dlg(get_event_message());
+connected=false;
+mainmenu();
+}
+}
+}
+}
+void livechat()
+{
+vc.filename=DIRECTORY_TEMP+"/filename.ogg";
+if(sentpacket==false)
+send_reliable(1, "spawn_user "+name+" "+yversion, 0);
+sentpacket=true;
+send_reliable(0, "getversion", 0);
+send_reliable(0, "welcome", 0);
+if(!SCRIPT_COMPILED)
+send_reliable(0, "dev", 0);
+while(true)
+{
+if(escapetimer.elapsed>2000)
+{
+escapetimer.restart();
+escapetimes=0;
+}
+zloop();
+bulletloop();
+netloop();
+if(key_pressed(KEY_D) and disarmtimer.elapsed>5000)
+{
+disarmtimer.restart();
+send_reliable(0,"disarm",0);
+}
+if(key_down(KEY_RIGHT) and walktimer.elapsed>walkspeed and x<300)
+{
+if(jumping==false)
+{
+chat.play_stationary("step"+random(1,5)+".ogg",false);
+}
+walktimer.restart();
+send_reliable(0,"stepright",0);
+x++;
+}
+if(aircushiontimer.elapsed>10000 and aircushion==true)
+{
+speak("Your air cushion has worn off.");
+aircushion=false;
+send_reliable(0,"aircushionstop",0);
+}
+if(jumptimer.elapsed>800 and jumping==true)
+{
+jumping=false;
+if(aircushion==true)
+{
+aircushion=false;
+send_reliable(0,"dieaircushion",0);
+}
+send_reliable(0,"land",0);
+chat.play_stationary("land.ogg",false);
+walkspeed=199;
+}
+if(key_pressed(KEY_DOWN))
+{
+dodgebullet();
+}
+if(key_pressed(KEY_UP))
+{
+if(jumptimer.elapsed>3000)
+{
+jumptimer.restart();
+jumping=true;
+walkspeed=50;
+chat.play_stationary("jump.ogg",false);
+send_reliable(0,"jump",0);
+}
+else if(aircushion==true and jumping==true)
+{
+jumptimer.restart();
+jumping=true;
+walkspeed=50;
+chat.play_stationary("jump.ogg",false);
+send_reliable(0,"jump",0);
+}
+}
+if(key_down(KEY_LEFT) and walktimer.elapsed>walkspeed and x>1)
+{
+if(jumping==false)
+{
+chat.play_stationary("step"+random(1,5)+".ogg",false);
+}
+walktimer.restart();
+send_reliable(0,"stepleft",0);
+x--;
+}
+if(key_pressed(KEY_SPACE))
+{
+send_reliable(0,"fire",0);
+}
+if(key_pressed(KEY_F1))
+send_reliable(0,"who",0);
+if(key_pressed(KEY_3))
+{
+rangedslot++;
+if(rangedslot==4)
+{
+rangedslot=1;
+}
+if(rangedslot==1)
+{
+send_reliable(0,"draw throwing_knives",0);
+}
+if(rangedslot==2)
+{
+send_reliable(0,"draw crossbow",0);
+}
+if(rangedslot==3)
+{
+send_reliable(0,"draw rifle",0);
+}
+}
+if(key_pressed(KEY_2))
+{
+pistolslot++;
+if(pistolslot==2)
+{
+pistolslot=0;
+}
+if(pistolslot==1)
+{
+send_reliable(0,"draw s&w_revolver",0);
+}
+if(pistolslot==0)
+{
+send_reliable(0,"draw beretta_m9",0);
+}
+}
+if(key_pressed(KEY_1))
+{
+meleeslot++;
+if(meleeslot==3)
+{
+meleeslot=0;
+}
+if(meleeslot==2)
+{
+send_reliable(0,"draw nunchaku",0);
+}
+if(meleeslot==0)
+{
+send_reliable(0,"draw knife",0);
+}
+if(meleeslot==1)
+{
+send_reliable(0,"draw sword",0);
+}
+}
+if(key_pressed(KEY_H))
+{
+send_reliable(0,"health",0);
+}
+if(key_pressed(KEY_I))
+{
+send_reliable(0,"inv",0);
+}
+if(key_down(KEY_LSHIFT) and key_pressed(KEY_C))
+{
+clipboard_copy_text(history[index]);
+speak("copied.");
+}
+if(key_pressed(KEY_M))
+{
+send_reliable(0,"items",0);
+speak("scanning for items");
+}
+if(key_pressed(KEY_C))
+{
+speak("location: "+x+"");
+}
+if(key_pressed(KEY_SLASH))
+{
+chatconsole();
+}
+if(key_pressed(KEY_ESCAPE))
+{
+escapetimer.restart();
+escapetimes++;
+p.play_stationary("ping.ogg",false);
+speak("time "+escapetimes);
+if(escapetimes==3)
+{
+leavechat();
+}
+}
+if(key_pressed(KEY_COMMA))
+{
+if(key_down(KEY_LSHIFT) or key_down(KEY_RSHIFT))
+top_history();
+else prev_chat();
+}
+if(key_pressed(KEY_PERIOD))
+{
+if(key_down(KEY_LSHIFT) or key_down(KEY_RSHIFT)) bottom_history();
+else next_chat();
+}
+if(key_pressed(KEY_F3))
+{
+pingtimer.restart();
+chat.play_stationary("pingstart.ogg",false);
+send_reliable(0,"ping",0);
+}
+if(key_pressed(KEY_F2))
+{
+send_reliable(0,"motd",0);
+}
+wait(5);
+}
+}
+
+void netloop()
+{
+event=net.request();
+if(terminating==true and terminating_timer.elapsed>=terminating_time)
+{
+terminating_timer.restart();
+terminating=false;
+connected=false;
+chat.destroy_all();
+mainmenu();
+}
+else if(exiting==true and exittimer.elapsed>=exittime)
+{
+exittimer.restart();
+exiting=false;
+connected=false;
+chat.destroy_all();
+mainmenu();
+}
+if(event.type==event_receive and event.channel==0)
+{
+string[] parsed=string_split(get_event_message(), " ", true);
+if(parsed[0]=="move")
+{
+x=string_to_number(parsed[1]);
+p.update_listener_1d(string_to_number(parsed[1]));
+}
+else if(parsed[0]=="play")
+{
+chat.play_1d(parsed[2],string_to_number(parsed[1]),string_to_number(parsed[3]),false);
+}
+else if(parsed[0]=="pong")
+{
+chat.play_stationary("pingstop.ogg",false);
+speak("the ping took "+pingtimer.elapsed+" milliseconds.");
+}
+else if(parsed[0]=="aircushionstart")
+{
+aircushion=true;
+aircushiontimer.restart();
+}
+else if(parsed[0]=="fall")
+{
+if(aircushion==true)
+{
+aircushion=false;
+send_reliable(0,"dieaircushion",0);
+}
+jumptimer.restart();
+jumping=false;
+walkspeed=300;
+}
+else if(parsed[0]=="inv")
+{
+setupmenu(false);
+speak("inventory menu.");
+for(uint i=1; i<parsed.length(); i++)
+{
+menu.add_item_tts(parsed[i],parsed[i]);
+}
+int mres=menu.run("select an item.",true);
+send_reliable(0,"use "+menu.get_item_name(mres),0);
+}
+else if(parsed[0]=="spawn_bullet")
+{
+bullet b1(parsed[1],string_to_number(parsed[2]),string_to_number(parsed[3]),string_to_number(parsed[4]),string_to_number(parsed[5]),parsed[6]);
+bullets.insert_last(b1);
+}
+else if(parsed[0]=="play_stationary")
+chat.play_stationary(parsed[1], false);
+else if(parsed[0]=="online")
+{
+chat.play_stationary("online.ogg", false);
+string msg;
+for(int i=1; i<parsed.length(); i++)
+{
+msg+=parsed[i]+" just came online";
+}
+speak(msg);
+}
+else if(parsed[0]=="offline")
+{
+chat.play_stationary("offline.ogg", false);
+string msg=parsed[1]+" just went offline";
+speak(msg);
+if(parsed[1]==name)
+{
+wait(800);
+exit();
+}
+}
+else if(parsed[0]=="terminate")
+{
+terminating_timer.restart();
+exiting=false;
+terminating=true;
+}
+else if(parsed[0]=="kill")
+{
+send_reliable(0, "disconnect", 0);
+exit();
+}
+else
+speak(get_event_message());
+}
+if(event.type==event_receive and event.channel==1)
+{
+add_chat(get_event_message());
+}
+if(event.type==event_receive and event.channel==2)
+{
+string[] parsed=string_split(get_event_message(), " ", false);
+if(parsed[0]=="cs_sound")
+{
+chat.play_stationary("voice.ogg",false);
+string voice=string_trim_left(get_event_message(), 9);
+if(chat.sound_is_playing(usound)==true)
+chat.destroy_sound(usound);
+usound=chat.play_stationary(voice,false,true);
+}
+}
+}
+
+void chatconsole()
+{
+speak("enter a message to send.");
+string message;
+int cursor=0;
+string[] chat;
+get_characters();
+while(true)
+{
+netloop();
+string char=get_characters();
+if(key_pressed(KEY_V) and key_down(KEY_LCONTROL))
+{
+string text=clipboard_read_text();
+for(int i=0; i<text.length(); i++)
+{
+chat.insert_at(cursor, text[i]);
+cursor+=1;
+}
+speak("Pasted");
+}
+
+if(char!="")
+{
+if(v.charrepeat==1)
+speak(char);
+chat.insert_at(cursor, char);
+cursor+=1;
+}
+if(key_pressed(KEY_BACK) and chat.length()>0 and cursor<=chat.length())
+{
+if(cursor>0)
+{
+string char=chat[cursor-1];
+speak(char);
+chat.remove_at(cursor-1);
+cursor-=1;
+}
+else
+speak("blank");
+}
+if(key_pressed(KEY_DELETE) and chat.length>0 and cursor>=0 and cursor<chat.length()-1)
+{
+string char=chat[cursor+1];
+if(v.charrepeat==1)
+speak(char);
+chat.remove_at(cursor+1);
+}
+if(key_pressed(KEY_RIGHT) and chat.length()>0 and cursor<chat.length)
+{
+if(cursor<chat.length())
+{
+cursor+=1;
+if(cursor>=chat.length())
+speak("blank");
+else speak(chat[cursor]);
+}
+else
+speak("blank");
+}
+if(key_pressed(KEY_LEFT) and cursor>0 and chat.length>0)
+{
+if(cursor>0)
+{
+cursor-=1;
+string char=chat[cursor];
+speak(char);
+}
+}
+if(key_pressed(KEY_ESCAPE))
+{
+speak("canceled");
+return;
+}
+if(key_pressed(KEY_F2))
+{
+if(v.charrepeat==1)
+{
+v.charrepeat=0;
+speak("character repeat off");
+}
+else
+{
+v.charrepeat=1;
+speak("character repeat on");
+}
+}
+if(key_pressed(KEY_RETURN))
+{
+if(chat.length>0)
+{
+for(int i=0; i<chat.length; i++)
+message+=chat[i];
+if(string_replace(message, "/", "", true)=="" or string_replace(message, " ", "", true)=="")
+return;
+else send_reliable(1, message, 1);
+return;
+}
+if(chat.length==0)
+{
+speak("canceled");
+return;
+}
+}
+if(key_pressed(KEY_UP) or key_pressed(KEY_DOWN))
+{
+string vlad;
+if(chat.length()>0)
+{
+for(int i=0; i<chat.length(); i++)
+{
+vlad+=chat[i];
+}
+speak(vlad);
+}
+}
+wait(5);
+}
+}
+
+void leavechat()
+{
+sentpacket=false;
+send_reliable(0, "disconnect", 0);
+exittimer.restart();
+exiting=true;
+}

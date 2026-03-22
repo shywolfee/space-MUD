@@ -1,0 +1,127 @@
+// Accounts system - stores encrypted .dat files in accounts/ folder
+string accounts_dir = "accounts";
+string accounts_key = "v1h4v3n_4cc0unt5_k3y";
+
+void accounts_init()
+{
+if(!directory_exists(accounts_dir))
+directory_create(accounts_dir);
+}
+
+bool account_exists(string username)
+{
+return file_exists(accounts_dir + "/" + username + ".dat");
+}
+
+bool register_account(string username, string password)
+{
+if(account_exists(username))
+return false;
+file f;
+string data = "password=" + password + "\r\n";
+data += "health=1000\r\n";
+data += "x=150\r\n";
+data += "weapon=knife\r\n";
+data += "money=0\r\n";
+data += "inv=antibiotic\r\n";
+data += "admin=0\r\n";
+f.open(accounts_dir + "/" + username + ".dat", "wb");
+f.write(string_encrypt(data, accounts_key));
+f.close();
+return true;
+}
+
+bool verify_password(string username, string password)
+{
+if(!account_exists(username))
+return false;
+dictionary@ acct = load_account(username);
+string stored_password;
+acct.get("password", stored_password);
+return (stored_password == password);
+}
+
+dictionary@ load_account(string username)
+{
+dictionary acct;
+if(!account_exists(username))
+return acct;
+file f;
+f.open(accounts_dir + "/" + username + ".dat", "rb");
+string raw = f.read();
+f.close();
+string data = string_decrypt(raw, accounts_key);
+string[] lines = string_split(data, "\r\n", true);
+for(int i = 0; i < lines.length(); i++)
+{
+int eq = string_contains(lines[i], "=", 1);
+if(eq > -1)
+{
+string key = string_left(lines[i], eq);
+string value = string_replace(lines[i], key + "=", "", true);
+acct.set(key, value);
+}
+}
+return acct;
+}
+
+void save_account(string username, string password, int health, int x_pos, string weapon, int money, string[] inv, bool admin)
+{
+file f;
+string data = "password=" + password + "\r\n";
+data += "health=" + health + "\r\n";
+data += "x=" + x_pos + "\r\n";
+data += "weapon=" + weapon + "\r\n";
+data += "money=" + money + "\r\n";
+string inv_str;
+for(uint i = 0; i < inv.length(); i++)
+{
+if(i > 0) inv_str += ",";
+inv_str += inv[i];
+}
+data += "inv=" + inv_str + "\r\n";
+if(admin)
+data += "admin=1\r\n";
+else
+data += "admin=0\r\n";
+f.open(accounts_dir + "/" + username + ".dat", "wb");
+f.write(string_encrypt(data, accounts_key));
+f.close();
+}
+
+void save_user_account(int index)
+{
+if(index < 0 or index >= users.length())
+return;
+save_account(users[index].name, users[index].password, users[index].health, users[index].x, users[index].weapon, users[index].money, users[index].inv, users[index].admin);
+}
+
+void load_user_account(int index)
+{
+if(index < 0 or index >= users.length())
+return;
+dictionary@ acct = load_account(users[index].name);
+string val;
+if(acct.get("health", val))
+users[index].health = string_to_number(val);
+if(acct.get("x", val))
+users[index].x = string_to_number(val);
+if(acct.get("weapon", val))
+users[index].weapon = val;
+if(acct.get("money", val))
+users[index].money = string_to_number(val);
+if(acct.get("admin", val))
+users[index].admin = (val == "1");
+if(acct.get("inv", val))
+{
+users[index].inv.resize(0);
+if(val != "")
+{
+string[] items_list = string_split(val, ",", true);
+for(uint i = 0; i < items_list.length(); i++)
+{
+users[index].inv.insert_last(items_list[i]);
+}
+}
+}
+}

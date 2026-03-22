@@ -1,0 +1,81 @@
+user@[] users;
+class user
+{
+bool aircushion=false;
+timer aircushiontimer;
+bool jumping;
+int money;
+timer antitimer;
+int antiamount;
+string[]inv;
+timer beacontimer;
+string lasthit;
+timer weapontimer;
+int weapontime=300;
+string weapon="knife";
+int weapondamage=125;
+int weaponrange=3;
+int health=1000;
+string name;
+string password;
+int x=150;
+int peer_id;
+timer messagetimer;
+double version;
+bool admin;
+void speak(string text)
+{
+send_reliable(peer_id,text,0);
+}
+user(int id, string username, double ver)
+{
+name=username;
+peer_id=id;
+version=ver;
+messagetimer.force(9000);
+}
+}
+void spawn_user(int id, string name, double version)
+{
+user user1(id, name, version);
+user1.inv.insert_last("antibiotic");
+users.insert_last(user1);
+}
+void playsound(int sindex, int sx, string ssound,bool indexhere=true)
+{
+for(uint i=0; i<users.length(); i++)
+{
+if(i==sindex)
+{
+if(indexhere==true)
+{
+send_reliable(users[i].peer_id,"play_stationary "+ssound,0);
+}
+}
+else if(users[i].x<sx+20 and users[i].x>sx-20)
+
+{
+send_reliable(users[i].peer_id,"play "+users[i].x+" "+ssound+" "+sx,0);
+}
+}
+}
+int get_player_index_from(uint peer_id)
+{
+for(uint i=0; i<users.length(); i++)
+{
+if(users[i].peer_id==peer_id)
+{
+return i;
+}
+else
+{
+return -1;
+}
+}
+return -1;
+}
+
+void give(int index,string togive)
+{
+users[index].inv.insert_last(togive);
+}

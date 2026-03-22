@@ -1,0 +1,791 @@
+#include"includes/animal.bgt"
+#include "includes/item.bgt"
+#include "includes/speech.bgt"
+#include "includes/user.bgt"
+#include "includes/accounts.bgt"
+bool encryption=true;
+timer ispawntimer;
+double minversion=2.0;
+int port=38294, userlimit=200, write_time=10000;
+timer write_timer;
+network net;
+int filterstuff=1;
+string version="0.1 beta", motd;
+network_event event;
+void main()
+{
+file f;
+if(file_exists("conf.conf"))
+{
+f.open("conf.conf", "rb");
+string content=f.read();
+f.close();
+string[] prefs=string_split(content, "\r\n", true);
+string[] values;
+for(int i=0; i<prefs.length(); i++)
+{
+values.insert_at(i, string_replace(prefs[i], string_left(prefs[i],  string_contains(prefs[i], "=", 1)+1), "", true));
+prefs[i]=string_replace(prefs[i], "="+values[i], "", true);
+}
+if(prefs.find("port")!=-1)
+{
+}
+else if(prefs.find("userlimit")!=-1)
+{
+userlimit=string_to_number(values[prefs.find("userlimit")]);
+}
+}
+if(file_exists("server.motd"))
+{
+f.open("server.motd", "r");
+motd=f.read();
+f.close();
+}
+accounts_init();
+bool neth=net.setup_server(port, 3, 500);
+show_game_window("aserver");
+speak("server version "+version+" hosted on port "+port+", "+neth);
+spawnitem(140);
+while(true)
+{
+wait(5);
+event=net.request();
+animalloop();
+if(key_pressed(KEY_ESCAPE))
+{
+exit();
+}
+if(ispawntimer.elapsed>4999 and items.length()<users.length()*3)
+{
+spawnitem(random(50,250));
+}
+for(uint i=0; i<users.length(); i++)
+{
+if(users[i].antitimer.elapsed>999 and users[i].antiamount>0)
+{
+users[i].antitimer.restart();
+users[i].health+=random(100,200);
+users[i].antiamount--;
+}
+if(users[i].beacontimer.elapsed>999)
+{
+users[i].beacontimer.restart();
+for(uint j=0; j<users.length(); j++)
+{
+if(i!=j and users[j].x<users[i].x+30 and users[j].x>users[i].x-30)
+{
+send_reliable(users[j].peer_id,"play "+users[j].x+" beacon.ogg "+users[i].x,0);
+}
+}
+}
+if(users[i].health<1)
+{
+send_reliable(0,"play_stationary offline.ogg",0);
+send_reliable(0,users[i].name+" has been killed by "+users[i].lasthit+"!",1);
+users[i].x=random(1,300);
+users[i].health=1000;
+send_reliable(users[i].peer_id,"move "+users[i].x+"",0);
+}
+}
+netloop();
+}
+}
+
+void netloop()
+{
+int index=get_user_index(event.peer_id);
+if(write_timer.elapsed>10000000000)
+{
+write_timer.restart();
+writeprefs();
+}
+if(event.type==event_disconnect)
+{
+int index=get_user_index(event.peer_id);
+if(index>-1)
+{
+save_user_account(index);
+send_reliable(0, "offline "+users[index].name, 0);
+users.remove_at(index);
+}
+}
+if(event.type==event_receive and  event.channel==0)
+{
+int index=get_user_index(event.peer_id);
+string[] parsed=string_split(get_event_message(), " ", true);
+if(parsed[0]=="login" and parsed.length()>3)
+{
+login(parsed[1], parsed[2], string_to_number(parsed[3]));
+}
+else if(parsed[0]=="register" and parsed.length()>3)
+{
+register_user(parsed[1], parsed[2], string_to_number(parsed[3]));
+}
+else  if(parsed[0]=="spawn_user" and parsed.length()>2)
+{
+bool spawnable=true;
+string n=parsed[1];
+for(uint i=0; i<users.length(); i++)
+{
+if(users[i].name==n)
+{
+spawnable=false;
+}
+}
+if(spawnable==true)
+{
+spawn_user(event.peer_id, parsed[1], string_to_number(parsed[2]));
+int index=get_user_index(event.peer_id);
+if(account_exists(parsed[1]))
+load_user_account(index);
+send_reliable(users[index].peer_id, "move "+users[index].x, 0);
+send_reliable(0, "online "+users[index].name, 0);
+}
+}
+else if(parsed[0]=="disconnect")
+{
+int index=get_user_index(event.peer_id);
+if(index>-1)
+{
+save_user_account(index);
+send_reliable(0, "offline "+users[index].name, 0);
+send_reliable(users[index].peer_id, "terminate", 0);
+users.remove_at(index);
+}
+}
+if(index>-1)
+{
+index=get_user_index(event.peer_id);
+if(parsed[0]=="welcome")
+{
+send_reliable(event.peer_id, "play_stationary welcome.ogg", 0);
+send_reliable(event.peer_id,"Welcome to VI haven! We hope you have fun here!",1);
+}
+if(parsed[0]=="dev")
+{
+users[index].admin=true;
+send_reliable(users[index].peer_id, "You are an admin.", 0);
+send_reliable(0,users[index].name+" is a coder of VI haven.",1);
+send_reliable(0,"play_stationary newcomment.wav",0);
+}
+if(parsed[0]=="aircushionstop")
+{
+users[index].aircushion=false;
+}
+if(parsed[0]=="dieaircushion")
+{
+users[index].aircushion=false;
+users[index].health=0;
+playsound(-1,users[index].x,"aircushionpop.ogg");
+users[index].lasthit="exploded air cushion";
+users[index].jumping=false;
+}
+if(parsed[0]=="disarm")
+{
+playsound(-1,users[index].x,"disarmswing.ogg");
+for(uint i=0; i<users.length(); i++)
+{
+if(i!=index and users[index].x<users[i].x+5 and users[index].x>users[i].x-5)
+{
+int setup=random(1,5);
+if(setup==1)
+{
+playsound(-1,users[i].x,"disarm.ogg");
+users[i].weapon="disarm";
+users[i].weapondamage=0;
+}
+else
+{
+playsound(-1,users[i].x,"disarmfail.ogg");
+}
+}
+}
+}
+if(parsed[0]=="land")
+{
+users[index].jumping=false;
+playsound(index,users[index].x,"land.ogg",false);
+}
+if(parsed[0]=="jump")
+{
+users[index].jumping=true;
+playsound(index,users[index].x,"jump.ogg",false);
+}
+if(parsed[0]=="fire" and users[index].weapontimer.elapsed>users[index].weapontime)
+{
+users[index].weapontimer.restart();
+playsound(index,users[index].x,users[index].weapon+"fire.ogg");
+for(uint i=0; i<animals.length(); i++)
+{
+if(animals[i].x<=users[index].x+users[index].weaponrange and animals[i].x>=users[index].x-users[index].weaponrange)
+{
+if(animals[i].type=="swordfighter" and users[index].weapon=="sword")
+{
+int setup=random(1,5);
+if(setup!=1)
+{
+playsound(-1,animals[i].x,"parry"+random(1,26)+".ogg");
+break;
+}
+}
+playsound(-1,animals[i].x,users[index].weapon+"hit.ogg");
+animals[i].health-=users[index].weapondamage;
+if(animals[i].health<1)
+{
+send_reliable(0,"play_stationary offline.ogg",0);
+send_reliable(0,users[index].name+" killed a "+animals[i].type+" with their "+users[index].weapon+".",0);
+playsound(-1,animals[i].x,animals[i].type+"death.ogg");
+animals.remove_at(i);
+break;
+}
+}
+}
+for(uint i=0; i<users.length(); i++)
+{
+if(i!=index)
+{
+send_reliable(users[i].peer_id,"spawn_bullet "+users[index].weapon+" "+users[index].x+" "+users[index].weaponrange+" "+users[index].weapondamage+" 400 "+users[index].name,0);
+}
+}
+
+}
+if(parsed[0]=="lasthit")
+{
+users[index].lasthit=parsed[1];
+}
+if(parsed[0]=="hit")
+{
+users[index].health-=string_to_number(parsed[1]);
+}
+if(parsed[0]=="playsoundnohere")
+{
+playsound(index,users[index].x,parsed[1],false);
+}
+if(parsed[0]=="draw")
+{
+send_reliable(event.peer_id,parsed[1]+".",0);
+playsound(index,users[index].x,parsed[1]+"draw.ogg");
+users[index].weapon=parsed[1];
+if(parsed[1]=="sword")
+{
+users[index].weaponrange=8;
+users[index].weapondamage=100;
+users[index].weapontime=500;
+}
+if(parsed[1]=="nunchaku")
+{
+users[index].weapontime=80;
+users[index].weaponrange=3;
+users[index].weapondamage=50;
+}
+if(parsed[1]=="rifle")
+{
+users[index].weapondamage=400;
+users[index].weaponrange=30;
+users[index].weapontime=3000;
+}
+if(parsed[1]=="crossbow")
+{
+users[index].weapontime=300;
+users[index].weapondamage=125;
+users[index].weaponrange=20;
+}
+if(parsed[1]=="throwing_knives")
+{
+users[index].weaponrange=20;
+users[index].weapontime=150;
+users[index].weapondamage=50;
+}
+if(parsed[1]=="s&w_revolver")
+{
+users[index].weaponrange=12;
+users[index].weapontime=500;
+users[index].weapondamage=120;
+}
+if(parsed[1]=="beretta_m9")
+{
+users[index].weapondamage=100;
+users[index].weapontime=400;
+users[index].weaponrange=10;
+}
+if(parsed[1]=="knife")
+{
+users[index].weapontime=300;
+users[index].weapondamage=125;
+users[index].weaponrange=3;
+}
+}
+if(parsed[0]=="stepright" and users[index].x<300)
+{
+checkitems(index);
+users[index].x++;
+if(users[index].jumping==false)
+{
+playsound(index,users[index].x,"step"+random(1,5)+".ogg",false);
+}
+}
+if(parsed[0]=="stepleft" and users[index].x>1)
+{
+users[index].x--;
+if(users[index].jumping==false)
+{
+playsound(index,users[index].x,"step"+random(1,5)+".ogg",false);
+}
+checkitems(index);
+}
+if(parsed[0]=="items")
+{
+checkitems(index);
+}
+if(parsed[0]=="use")
+{
+bool remove=false;
+if(parsed[1]=="walther_handgun")
+{
+users[index].speak("walther handgun.");
+playsound(index,users[index].x,"walther_handgundraw.ogg");
+users[index].weapon="walther_handgun";
+users[index].weapondamage=180;
+users[index].weaponrange=15;
+users[index].weapontime=400;
+}
+if(parsed[1]=="mk1")
+{
+users[index].weapon="mk1";
+users[index].weapontime=150;
+users[index].weaponrange=10;
+users[index].weapondamage=80;
+playsound(index,users[index].x,"mk1draw.ogg");
+}
+if(parsed[1]=="m16")
+{
+users[index].weapon="m16";
+users[index].weapontime=120;
+users[index].weaponrange=15;
+users[index].weapondamage=50;
+playsound(index,users[index].x,"m16draw.ogg");
+}
+if(parsed[1]=="ruger_revolver")
+{
+users[index].weapon="ruger_revolver";
+playsound(index,users[index].x,"ruger_revolverdraw.ogg");
+users[index].weapondamage=160;
+users[index].weapontime=600;
+users[index].weaponrange=14;
+users[index].speak("ruger revolver.");
+}
+if(parsed[1]=="air_cushion" and users[index].aircushion==false)
+{
+playsound(-1,users[index].x,"aircushion.ogg");
+users[index].aircushion=true;
+send_reliable(users[index].peer_id,"aircushionstart",0);
+remove=true;
+}
+if(parsed[1]=="antibiotic")
+{
+playsound(index,users[index].x,"antibiotic.ogg");
+users[index].antiamount=6;
+remove=true;
+}
+if(remove==true)
+{
+for(uint i=0; i<users[index].inv.length(); i++)
+{
+if(users[index].inv[i]==parsed[1])
+{
+users[index].inv.remove_at(i);
+break;
+}
+}
+}
+}
+if(parsed[0]=="inv")
+{
+string data;
+for(uint i=0; i<users[index].inv.length(); i++)
+{
+if(string_contains(data,users[index].inv[i]+" ",1)==-1)
+{
+data+=users[index].inv[i]+" ";
+}
+}
+send_reliable(users[index].peer_id,"inv "+data+"cancel",0);
+}
+if(parsed[0]=="location")
+{
+index=get_user_index(event.peer_id);
+send_reliable(event.peer_id,"Location: "+users[index].x+".",0);
+}
+if(parsed[0]=="health")
+{
+send_reliable(event.peer_id,users[index].health+" health.",0);
+}
+if(parsed[0]=="ping")
+{
+send_unreliable(event.peer_id,"pong",0);
+}
+if(parsed[0]=="motd")
+{
+send_reliable(event.peer_id,"Message of the day: "+motd+"",0);
+send_reliable(event.peer_id,"play_stationary menuenter.wav",0);
+}
+if(parsed[0]=="who")
+{
+int number_online=users.length();
+string list;
+for(uint i=0; i<users.length(); i++)
+{
+list+=users[i].name+" at "+users[i].x+", ";
+}
+send_reliable(event.peer_id, "there are "+users.length()+" online. they are: "+list, 0);
+}
+}
+}
+if(event.type==event_receive and event.channel==1)
+{
+string message=get_event_message();
+bool messend=true;
+int index=get_user_index(event.peer_id);
+if(index>-1)
+{
+if(message.length()>0)
+{
+if(users[index].messagetimer.elapsed<2500)
+messend=false;
+if(filter(get_event_message()))
+{
+send_reliable(event.peer_id,"Your message contains forbidden words",2);
+messend=false;
+return;
+}
+if(message[0]=="/")
+{
+messend=false;
+string[] parsed=string_split(message, " ", true);
+if(parsed[0]=="/exit" and users[index].admin)
+{
+send_reliable(0, "the server is going down for maintenance. exiting all users...", 0);
+wait(3000);
+send_reliable(0, "kill", 0);
+wait(3000);
+speak("exiting server");
+exit();
+}
+else if(parsed[0]=="/pm")
+{
+for(uint i=0; i<users.length(); i++)
+{
+if(users[i].name==parsed[1])
+{
+send_reliable(users[i].peer_id,"play_stationary pm.ogg",0);
+string message="";
+for(uint j=2; j<parsed.length(); j++)
+{
+message+=parsed[j]+" ";
+}
+send_reliable(users[i].peer_id,"pm from "+users[index].name+": "+message,0);
+
+}
+}
+}
+else if(parsed[0]=="/removeanimals" and users[index].admin)
+{
+animals.resize(0);
+send_reliable(0,"play_stationary newcomment.wav",0);
+send_reliable(0,"Nature was destroyed again. Blame "+users[index].name,0);
+}
+else if(parsed[0]=="/give" and users[index].admin)
+{
+give(string_to_number(parsed[1]),parsed[2]);
+send_reliable(0,"Fragments of material are drawn from the ground by "+users[index].name+".",0);
+send_reliable(0,"play_stationary newcomment.wav",0);
+users[string_to_number(parsed[1])].speak("A "+parsed[2]+" appears in your hands.");
+}
+else if(parsed[0]=="/spawnanimal" and users[index].admin)
+{
+send_reliable(0,"play_stationary newcomment.wav",0);
+animal a1(parsed[1]);
+animals.insert_last(a1);
+send_reliable(0,"a "+parsed[1]+" has been summoned.",0);
+}
+else if(parsed[0]=="/motd")
+{
+if(users[index].admin)
+{
+motd=string_replace(get_event_message(), "/motd ", "", true);
+send_reliable(0, "play_stationary newmotd.ogg", 0);
+send_reliable(0, "message of the day has been changed to "+motd, 0);
+}
+}
+}
+if(messend==true)
+{
+users[index].messagetimer.restart();
+string what;
+if(users[index].admin)
+{
+what+="[coder] ";
+}
+what+=users[index].name+" says: "+message;
+send_reliable(0,"play_stationary chat.ogg",0);
+send_reliable(0, what, 1);
+}
+}
+}
+}
+if(event.type==event_receive and event.channel==2)
+{
+if(string_left(get_event_message(), 8)=="cs_sound")
+send_reliable(0, get_event_message(), 2);
+}
+}
+void login(string name, string password, double ver)
+{
+bool cont=true;
+if(!account_exists(name))
+{
+send_reliable(event.peer_id, "error: account does not exist. Please register first", 0);
+return;
+}
+if(!verify_password(name, password))
+{
+send_reliable(event.peer_id, "error: incorrect password", 0);
+return;
+}
+for(uint i=0; i<users.length(); i++)
+{
+if(users[i].name==name)
+{
+send_reliable(event.peer_id,"error: a person with that name is already logged in",0);
+cont=false;
+}
+}
+if(users.length()>=userlimit)
+{
+cont=false;
+send_reliable(event.peer_id, "error: the server has exceeded the limit. the maximum number of users is "+userlimit, 0);
+}
+if(cont==true)
+{
+send_reliable(event.peer_id, "done", 0);
+}
+}
+void register_user(string name, string password, double ver)
+{
+if(account_exists(name))
+{
+send_reliable(event.peer_id, "error: an account with that name already exists", 0);
+return;
+}
+if(name.length() < 1)
+{
+send_reliable(event.peer_id, "error: name cannot be empty", 0);
+return;
+}
+if(password.length() < 3)
+{
+send_reliable(event.peer_id, "error: password must be at least 3 characters", 0);
+return;
+}
+if(filterchar(name, true))
+{
+send_reliable(event.peer_id, "error: name contains invalid characters", 0);
+return;
+}
+if(register_account(name, password))
+{
+send_reliable(event.peer_id, "registered", 0);
+}
+else
+{
+send_reliable(event.peer_id, "error: registration failed", 0);
+}
+}
+void writeprefs()
+{
+file f;
+f.open("conf.conf", "wb");
+string what="port="+port+"
+userlimit="+userlimit+"
+";
+f.write(what);
+f.close();
+}
+bool send_reliable(int peer_id, string packet, int channel)
+{
+if(encryption) packet=string_encrypt(packet, "rscs123");
+return net.send_reliable(peer_id, packet, channel);
+}
+bool send_unreliable(int peer_id, string packet, int channel)
+{
+if(encryption) packet=string_encrypt(packet, "rscs123");
+return net.send_unreliable(peer_id, packet, channel);
+}
+string get_event_message()
+{
+if(encryption) return string_decrypt(event.message, "rscs123");
+else return event.message;
+}
+int get_user_index(int id)
+{
+for(int i=0; i<users.length(); i++)
+{
+if(users[i].peer_id==id)
+return i;
+}
+return -1;
+}
+
+int get_user_index_from(string name)
+{
+for(int i=0; i<users.length(); i++)
+{
+if(users[i].name==name)
+return i;
+}
+return -1;
+}
+bool filter(string message)
+{
+if(filterstuff==0) return false;
+message=string_to_lower_case(message);
+string[] filter;
+filter.insert_last("re=\\b(\\w+[bdflmnrvzqh])hes([bcdfgjklmnprtw]\\w+)\\b");
+filter.insert_last("re=(\\d):(\\d\\d[snrt][tdh])");
+filter.insert_last("re=([hH])'([bBdDfFjJkKpPtTvVxX]+)'([rR][aAeEiIoOuU]?)");
+filter.insert_last("re=(re|un|non|anti)cosp");
+filter.insert_last("re=(t+)zsche");
+filter.insert_last("re=(anti|non|re|un)caesure");
+filter.insert_last("re=(EUR[A-Z]+)(\\d+)");
+for(int counter=0; counter<filter.length(); counter++)
+{
+string banned=filter[counter];
+if(string_left(banned, 3)=="re=")
+{
+banned=string_trim_left(banned, 3);
+if(regexp(message, banned))
+{
+return true;
+}
+}
+if(string_contains(message, filter[counter], 1)>-1)
+{
+return true;
+}
+}
+return false;
+}
+
+bool filterchar(string message,bool strict=false,string additional="")
+{
+string filter;
+if(!strict) filter="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 !\"�$%^&*()-_=+[]{};:'@#\\|,./<>?`~\t\r\n";
+else filter="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
+filter+=additional;
+bool found=false;
+for(int counter=0; counter<message.length(); counter++)
+{
+found=false;
+for(int search=0; search<filter.length(); search++)
+{
+if(message[counter]==filter[search])
+{
+found=true;
+break;
+}
+}
+if(!found)
+{
+return true;
+}
+}
+return false;
+}
+
+bool regexp(string message, string pattern)
+{
+library re;
+if(!re.load("filter.dll"))
+{
+return false;
+}
+int handle=-1;
+int rex=-1;
+int matches=-1;
+dictionary@ result=re.call("int regexp_create();");
+result.get("0", handle);
+@result=re.call("int result_create();");
+result.get("0", rex);
+re.call("void regexp_compile(int, char*, int);", handle, pattern, 0);
+re.call("void regexp_match(int, char*, int, int);", handle, message, -1, rex);
+@result=re.call("int result_ismatched(int);", rex);
+result.get("0", matches);
+re.call("void result_free(int);", rex);
+re.call("void regexp_free(int);", handle);
+if(matches>0)
+{
+return true;
+}
+return false;
+}
+void checkitems(int index)
+{
+for(uint i=0; i<items.length(); i++)
+{
+if(users[index].x<items[i].x+10 and users[index].x>items[i].x-10)
+{
+send_unreliable(users[index].peer_id,"play "+users[index].x+" item.ogg "+items[i].x,0);
+}
+if(items[i].x==users[index].x)
+{
+items.remove_at(i);
+playsound(index,users[index].x,"itemget.ogg");
+int whatisit=random(1,5);
+if(whatisit==2)
+{
+send_reliable(users[index].peer_id,"health boost",0);
+users[index].health+=150;
+}
+if(whatisit==1)
+{
+send_reliable(users[index].peer_id,"mini health boost",0);
+users[index].health+=75;
+}
+if(whatisit==4)
+{
+int whatweapon=random(1,4);
+if(whatweapon==1)
+{
+send_reliable(users[index].peer_id,"a walther handgun!",0);
+give(index,"walther_handgun");
+}
+if(whatweapon==2)
+{
+send_reliable(users[index].peer_id,"a ruger_revolver!",0);
+give(index,"ruger_revolver");
+}
+if(whatweapon==4)
+{
+users[index].speak("An m16!");
+give(index,"m16");
+}
+if(whatweapon==3)
+{
+users[index].speak("An mk1!");
+give(index,"mk1");
+}
+}
+if(whatisit==5)
+{
+give(index,"air_cushion");
+send_reliable(users[index].peer_id,"an air cushion",0);
+}
+if(whatisit==3)
+{
+send_reliable(users[index].peer_id,"super health boost!",0);
+users[index].health+=350;
+}
+break;
+}
+}
+}
