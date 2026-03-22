@@ -99,8 +99,9 @@ changelog.insert_last("- Login offers to register if no account exists on server
 changelog.insert_last("- Registration form: username, password, confirm, email, rules checkbox");
 changelog.insert_last("- Account credentials stored in encrypted settings file");
 changelog.insert_last("- Add existing account option verifies with server before saving");
-changelog.insert_last("- Added form, buffer, dateandtime, and submenu system includes");
+changelog.insert_last("- Added form, buffer, dateandtime, submenu system, and updater includes");
 changelog.insert_last("- Server now stores email on registration");
+changelog.insert_last("- Fixed buffer system compatibility with BGT speak and removed invalid calls");
 changelog.insert_last("");
 changelog.insert_last("Version 0.2 beta - Obsidian");
 changelog.insert_last("- Renamed game from VI Haven to Obsidian");
