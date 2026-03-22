@@ -25,7 +25,7 @@ if(encrypting) return string_decrypt(event.message, "rscs123");
 else return event.message;
 }
 string ip="sightlesswolf.com"; // enter the ip here to connect to.
-const int port=38294;
+int client_port=38294;
 void login()
 {
 if(name=="")
@@ -42,7 +42,7 @@ dlg("Login canceled.");
 mainmenu();
 }
 speak("Please wait...");
-net.connect(ip, port);
+net.connect(ip, client_port);
 connectiontimer.restart();
 while(true)
 {
@@ -80,6 +80,17 @@ mainmenu();
 }
 else
 {
+setupmenu();
+speak("Before registering, you must agree to the rules.");
+speak(rules_text);
+menu.add_item_tts("I agree to the rules.", "agree");
+menu.add_item_tts("I do not agree. Cancel registration.", "disagree");
+int rresult = menu.run("Do you agree to the rules?", true);
+if(rresult == 0 or menu.get_item_name(rresult) == "disagree")
+{
+dlg("You must agree to the rules to register. Registration canceled.");
+mainmenu();
+}
 string password = v.input("Choose a password for your account. Must be at least 3 characters.");
 if(password == "")
 {
@@ -98,7 +109,7 @@ dlg("Passwords do not match!");
 mainmenu();
 }
 speak("Please wait...");
-net.connect(ip, port);
+net.connect(ip, client_port);
 connectiontimer.restart();
 while(true)
 {
@@ -287,6 +298,44 @@ if(key_pressed(KEY_I))
 {
 send_reliable(0,"inv",0);
 }
+if(key_pressed(KEY_TAB) and !key_down(KEY_LSHIFT) and !key_down(KEY_RSHIFT))
+{
+if(client_inv.length() > 0)
+{
+inv_index++;
+if(inv_index >= int(client_inv.length()))
+inv_index = 0;
+speak(client_inv[inv_index]);
+}
+else
+{
+speak("No items in inventory. Press I to refresh.");
+}
+}
+if(key_pressed(KEY_TAB) and (key_down(KEY_LSHIFT) or key_down(KEY_RSHIFT)))
+{
+if(client_inv.length() > 0)
+{
+inv_index--;
+if(inv_index < 0)
+inv_index = int(client_inv.length()) - 1;
+speak(client_inv[inv_index]);
+}
+else
+{
+speak("No items in inventory. Press I to refresh.");
+}
+}
+if(key_pressed(KEY_RETURN) and inv_index >= 0 and inv_index < int(client_inv.length()))
+{
+speak("Using "+client_inv[inv_index]);
+send_reliable(0, "use "+client_inv[inv_index], 0);
+client_inv.remove_at(inv_index);
+if(inv_index >= int(client_inv.length()) and client_inv.length() > 0)
+inv_index = int(client_inv.length()) - 1;
+else if(client_inv.length() == 0)
+inv_index = -1;
+}
 if(key_down(KEY_LSHIFT) and key_pressed(KEY_C))
 {
 clipboard_copy_text(history[index]);
@@ -395,13 +444,22 @@ walkspeed=300;
 }
 else if(parsed[0]=="inv")
 {
-setupmenu(false);
-speak("inventory menu.");
+client_inv.resize(0);
+inv_index = -1;
 for(uint i=1; i<parsed.length(); i++)
 {
-menu.add_item_tts(parsed[i],parsed[i]);
+if(parsed[i] != "cancel")
+client_inv.insert_last(parsed[i]);
 }
+setupmenu(false);
+speak("inventory menu.");
+for(uint i=0; i<client_inv.length(); i++)
+{
+menu.add_item_tts(client_inv[i], client_inv[i]);
+}
+menu.add_item_tts("cancel", "cancel");
 int mres=menu.run("select an item.",true);
+if(mres > 0 and menu.get_item_name(mres) != "cancel")
 send_reliable(0,"use "+menu.get_item_name(mres),0);
 }
 else if(parsed[0]=="spawn_bullet")
@@ -559,7 +617,12 @@ for(int i=0; i<chat.length; i++)
 message+=chat[i];
 if(string_replace(message, "/", "", true)=="" or string_replace(message, " ", "", true)=="")
 return;
-else send_reliable(1, message, 1);
+if(message == "/changes")
+{
+show_changelog_menu();
+return;
+}
+send_reliable(1, message, 1);
 return;
 }
 if(chat.length==0)

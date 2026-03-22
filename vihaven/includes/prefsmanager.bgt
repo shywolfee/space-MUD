@@ -23,15 +23,20 @@ last_seen_comments=string_to_number(values[parameters.find("lastcoms")]);
 }
 if(parameters.find("menuscrolling")!=-1)
 menuscroll=string_to_number(values[parameters.find("menuscrolling")]);
+if(parameters.find("rules_accepted")!=-1)
+rules_accepted=(values[parameters.find("rules_accepted")]=="1");
 }
 void writeprefs()
 {
 file p;
 p.open(prefsdir+"/settings.dat", "wb");
 string what;
+string ra="0";
+if(rules_accepted) ra="1";
 what="name="+name+"
 lastcoms="+last_seen_comments+"
-menuscrolling="+menuscroll+"";
+menuscrolling="+menuscroll+"
+rules_accepted="+ra+"";
 p.write(string_encrypt(what, "fucking comments"));
 p.close();
 }

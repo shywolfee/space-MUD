@@ -10,7 +10,7 @@ int port=38294, userlimit=200, write_time=10000;
 timer write_timer;
 network net;
 int filterstuff=1;
-string version="0.1 beta", motd;
+string version="0.2 beta", motd;
 network_event event;
 void main()
 {
@@ -159,13 +159,13 @@ index=get_user_index(event.peer_id);
 if(parsed[0]=="welcome")
 {
 send_reliable(event.peer_id, "play_stationary welcome.ogg", 0);
-send_reliable(event.peer_id,"Welcome to VI haven! We hope you have fun here!",1);
+send_reliable(event.peer_id,"Welcome to Obsidian! We hope you have fun here!",1);
 }
 if(parsed[0]=="dev")
 {
 users[index].admin=true;
 send_reliable(users[index].peer_id, "You are an admin.", 0);
-send_reliable(0,users[index].name+" is a coder of VI haven.",1);
+send_reliable(0,users[index].name+" is a coder of Obsidian.",1);
 send_reliable(0,"play_stationary newcomment.wav",0);
 }
 if(parsed[0]=="aircushionstop")

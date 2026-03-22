@@ -11,17 +11,17 @@
 timer pingtimer;
 int x=150;
 timer walktimer;
-double yversion=0.2;
+double yversion=0.3;
 voicechatting vc;
 string passc="hackmyfuckingsystemyousonofabitch";
 dynamic_menu_pro menu;
 bool testing=false;
-string prefsdir=DIRECTORY_APPDATA+"/"+"Sightless wolf productions"+"/VI haven";
+string prefsdir=DIRECTORY_APPDATA+"/"+"Obsidian";
 int usound;
 int channels=2;
 int rectime=60000;
 bool recording;
-string name="noName"+random(0,9999), company="sightlesswolf", version="0.17 revival patch 1";
+string name="noName"+random(0,9999), company="obsidian", version="0.2 beta";
 int last_seen_comments;
 string[] comment;
 string web="http://blinkwizard.ddns.net";
@@ -30,6 +30,11 @@ sound_pool p, chat;
 virtualizer v;
 int menuscroll;
 bool sentpacket=false;
+bool rules_accepted=false;
+string[] client_inv;
+int inv_index=-1;
+string[] changelog;
+string rules_text;
 void main()
 {
 if(file_exists(prefsdir+"/name.dat"))
@@ -40,11 +45,15 @@ if(screen_reader_is_running(1))
 {
 install_keyhook();
 }
-show_game_window("VI haven  version "+version+"");
+show_game_window("Obsidian version "+version+"");
 set_sound_storage("sounds.dat");
 if(!directory_exists(prefsdir))
-dlg("error! No settings configured. This could be because I updated the way settings are saved, or you are running this for the first time. Continuing with default settings...press enter to continue");
+{
+dlg("Welcome to Obsidian! No settings configured. Continuing with default settings... press enter to continue");
 directory_create(prefsdir);
+}
+load_rules();
+load_changelog();
 readprefs();
 if(game.is_already_running) exit();
 wait(100);
@@ -52,7 +61,72 @@ if(screen_reader_is_running(1))
 install_keyhook();
 net.setup_client(3, 500);
 newzone("battlefield",1,300);
+if(!rules_accepted)
+{
+show_rules_screen();
+}
 mainmenu();
+}
+void load_rules()
+{
+if(file_exists("rules.txt"))
+{
+file f;
+f.open("rules.txt", "r");
+rules_text = f.read();
+f.close();
+}
+else
+{
+rules_text = "No rules file found. Please ensure rules.txt exists in the game directory.";
+}
+}
+void load_changelog()
+{
+changelog.resize(0);
+changelog.insert_last("Version 0.2 beta - Obsidian");
+changelog.insert_last("- Renamed game from VI Haven to Obsidian");
+changelog.insert_last("- Added encrypted accounts system with registration and login");
+changelog.insert_last("- Player data now persists between sessions");
+changelog.insert_last("- Added first-run beta rules agreement screen");
+changelog.insert_last("- Rules must be accepted to register an account");
+changelog.insert_last("- Added account setup option in customization menu");
+changelog.insert_last("- Added server and port settings when running from source");
+changelog.insert_last("- Added /changes command to view changelog in game");
+changelog.insert_last("- Added tab and shift tab inventory cycling with enter to use items");
+changelog.insert_last("- Rules are now loaded from rules.txt");
+changelog.insert_last("");
+changelog.insert_last("Version 0.17 revival patch 1 - VI Haven");
+changelog.insert_last("- Original release");
+}
+void show_rules_screen()
+{
+setupmenu();
+speak("Welcome to Obsidian beta! Before continuing, you must read and agree to the rules.");
+speak(rules_text);
+menu.add_item_tts("I agree to the rules.", "agree");
+menu.add_item_tts("I do not agree. Exit game.", "disagree");
+int result = menu.run("Do you agree to the rules?", true);
+if(result == 0 or menu.get_item_name(result) == "disagree")
+{
+dlg("You must agree to the rules to play. Exiting.");
+exit();
+}
+rules_accepted = true;
+writeprefs();
+dlg("Thank you for agreeing to the rules. Welcome to Obsidian!");
+}
+void show_changelog_menu()
+{
+setupmenu();
+for(uint i = 0; i < changelog.length(); i++)
+{
+if(changelog[i] != "")
+menu.add_item_tts(changelog[i], "", "", false);
+}
+menu.add_item_tts("Go back.", "back");
+menu.speak_position_information = true;
+int result = menu.run("Changelog. Use up and down arrows to read.", true);
 }
 void setupmenu(bool music=false)
 {
@@ -80,6 +154,7 @@ void mainmenu()
 setupmenu(true);
 menu.add_item_tts("Log in.","livechat");
 menu.add_item_tts("Register.","register");
+menu.add_item_tts("Changelog.","changelog");
 if(SCRIPT_COMPILED==false)
 {
 menu.add_item_tts("switch to local","switch");
@@ -120,6 +195,11 @@ else if(menu.get_item_name(result)=="register")
 {
 speak("connecting to server.");
 register_account_client();
+}
+else if(menu.get_item_name(result)=="changelog")
+{
+show_changelog_menu();
+mainmenu();
 }
 }
 void viewmenu()
@@ -193,6 +273,12 @@ temp="set name";
 else
 temp="Set name.";
 menu.add_item_tts(temp, "setname");
+menu.add_item_tts("Account setup.", "accountsetup");
+if(SCRIPT_COMPILED==false)
+{
+menu.add_item_tts("Set server address. Currently: "+ip, "setserver");
+menu.add_item_tts("Set server port. Currently: "+client_port, "setport");
+}
 if(menuscroll==0)
 menu.add_item_tts("enable menu side scrolling", "esc");
 else if(menuscroll==1)
@@ -201,6 +287,27 @@ menu.add_item_tts("go back", "back");
 int result=menu.run("customization menu", true);
 if(result==0 or menu.get_item_name(result)=="back") mainmenu();
 else if(menu.get_item_name(result)=="setname") setname();
+else if(menu.get_item_name(result)=="accountsetup") account_setup();
+else if(menu.get_item_name(result)=="setserver")
+{
+string newip = v.input("Enter the server address. Current: "+ip);
+if(newip != "")
+{
+ip = newip;
+speak("Server set to "+ip);
+}
+settings_menu();
+}
+else if(menu.get_item_name(result)=="setport")
+{
+string newport = v.input("Enter the server port. Current: "+port);
+if(newport != "")
+{
+client_port = string_to_number(newport);
+speak("Port set to "+client_port);
+}
+settings_menu();
+}
 else if(menu.get_item_name(result)=="esc")
 {
 menuscroll=1;
@@ -212,6 +319,28 @@ else if(menu.get_item_name(result)=="dsc")
 menuscroll=0;
 writeprefs();
 settings_menu();
+}
+}
+void account_setup()
+{
+if(name == "" or name == "noName"+random(0,9999))
+{
+dlg("You need to set your name first before setting up an account.");
+setname();
+return;
+}
+setupmenu();
+menu.add_item_tts("Register a new account.", "register");
+menu.add_item_tts("Go back.", "back");
+int result = menu.run("Account setup. Your current name is "+name+".", true);
+if(result == 0 or menu.get_item_name(result) == "back")
+{
+settings_menu();
+}
+else if(menu.get_item_name(result) == "register")
+{
+speak("connecting to server.");
+register_account_client();
 }
 }
 
