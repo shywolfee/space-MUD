@@ -99,10 +99,8 @@ if (buffers[i].name!="all")
 {
 if(silent==false)
 {
-if(tr==true)
-speak(item,buffers[i].interrupt,false,true);
-else
-speak(item,buffers[i].interrupt,false,false);
+bool do_interrupt=(buffers[i].interrupt==1);
+speak(item, do_interrupt);
 }
 }
 buffers[i].items.insert_last(item);
@@ -131,8 +129,6 @@ f.close();
 }
 void export_all_buffers()
 {
-if(string_contains(get_script_path(),"dropbox",1)>-1 and SCRIPT_COMPILED)
-return;
 for (uint i=0; i<buffers.length(); i++)
 {
 export_buffer(buffers[i].name);
