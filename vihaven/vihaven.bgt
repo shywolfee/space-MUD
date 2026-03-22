@@ -1,42 +1,39 @@
-#include"includes/bullet.bgt"
-#include"includes/zone.bgt"
-#include"includes/voicechatting.bgt"
-#include "includes/chathistory.bgt"
+// Audio and UI libraries
+#include "includes/sp.bgt"
 #include "includes/buffer.bgt"
-#include "includes/chat.bgt"
-#include "includes/dateandtime.bgt"
 #include "includes/dlg.bgt"
 #include "includes/form.bgt"
 #include "includes/m_pro.bgt"
-#include "includes/prefsmanager.bgt"
-#include "includes/sp.bgt"
-#include "includes/submenu_system.bgt"
 #include "includes/virtualizer.bgt"
+#include "includes/submenu_system.bgt"
+// Utilities
+#include "includes/dateandtime.bgt"
+#include "includes/chathistory.bgt"
+// Game systems
+#include "includes/bullet.bgt"
+#include "includes/zone.bgt"
+#include "includes/voicechatting.bgt"
+// Core game logic (split from old monolithic chat.bgt)
+#include "includes/connection.bgt"
+#include "includes/prefsmanager.bgt"
+#include "includes/chat.bgt"
+#include "includes/game.bgt"
 timer pingtimer;
 int x=150;
 timer walktimer;
 double yversion=0.4;
 voicechatting vc;
-string passc="hackmyfuckingsystemyousonofabitch";
 dynamic_menu_pro menu;
-bool testing=false;
 string prefsdir=DIRECTORY_APPDATA+"/"+"Obsidian";
 int usound;
-int channels=2;
-int rectime=60000;
-bool recording;
-string name="noName"+random(0,9999), company="obsidian", version="0.4 beta";
-int last_seen_comments;
-string[] comment;
-string web="http://blinkwizard.ddns.net";
+string name="noName"+random(0,9999), company="obsidian", version="0.5 beta";
 instance game("system");
 sound_pool p, chat;
 virtualizer v;
 int menuscroll;
 bool sentpacket=false;
 bool rules_accepted=false;
-string[] client_inv;
-int inv_index=-1;
+string[] last_inv;
 string[] changelog;
 string rules_text;
 string stored_user="";
@@ -45,19 +42,12 @@ string stored_email="";
 audio_form af;
 void main()
 {
-if(file_exists(prefsdir+"/name.dat"))
-file_delete(prefsdir+"/name.dat");
-if(file_exists(prefsdir+"/last.dat"))
-file_delete(prefsdir+"/last.dat");
 if(screen_reader_is_running(1))
-{
 install_keyhook();
-}
 show_game_window("Obsidian "+version);
 set_sound_storage("sounds.dat");
 if(!directory_exists(prefsdir))
 {
-dlg("Welcome to Obsidian! Press enter to get started.");
 directory_create(prefsdir);
 }
 load_rules();
@@ -92,6 +82,24 @@ rules_text = "No rules file found. Please ensure rules.txt exists in the game di
 void load_changelog()
 {
 changelog.resize(0);
+changelog.insert_last("Version 0.5 beta - Obsidian");
+changelog.insert_last("- Inventory now uses server as source of truth, no client caching");
+changelog.insert_last("- TAB and shift TAB cycle inventory via server, I opens inventory menu");
+changelog.insert_last("- ENTER uses the currently selected inventory item via server");
+changelog.insert_last("- Connection timeouts now offer retry or back to menu");
+changelog.insert_last("- Rules screen is now a form with checkbox instead of a menu");
+changelog.insert_last("- Server config (address and port) now saved in settings and always visible");
+changelog.insert_last("- Removed localhost and beta server menu shortcuts");
+changelog.insert_last("- Removed name field from options (handled by accounts)");
+changelog.insert_last("- Item pickup and weapon equip messages are now consistent");
+changelog.insert_last("- Fixed who command trailing comma");
+changelog.insert_last("- Private messages now give feedback when player not found");
+changelog.insert_last("- Chat rate limiting now tells you when you are sending too fast");
+changelog.insert_last("- Fixed menu click, edge, and enter sounds never playing");
+changelog.insert_last("- Fixed online notification message formatting");
+changelog.insert_last("- Removed dead code: comments system, watcher, sound upload");
+changelog.insert_last("- Split monolithic chat.bgt into connection.bgt, game.bgt, and chat.bgt");
+changelog.insert_last("");
 changelog.insert_last("Version 0.4 beta - Obsidian");
 changelog.insert_last("- Fixed rules agreement not persisting between sessions");
 changelog.insert_last("- Main menu now shows account name and uses cleaner labels");
@@ -133,19 +141,34 @@ changelog.insert_last("- Original release");
 }
 void show_rules_screen()
 {
-setupmenu();
-speak("Before playing, please review the rules.");
-speak(rules_text);
-menu.add_item_tts("I agree to the rules", "agree");
-menu.add_item_tts("I do not agree", "disagree");
-int result = menu.run("Do you agree to the rules?", true);
-if(result == 0 or menu.get_item_name(result) == "disagree")
+af.reset();
+af.create_window("Rules Agreement", true, true);
+int rules_display = af.create_status_bar("Rules", rules_text);
+int agree_cb = af.create_checkbox("I &agree to the rules", false);
+int continue_btn = af.create_button("&Continue", true);
+int exit_btn = af.create_button("&Exit game", false, true);
+af.focus(rules_display);
+while(true)
+{
+af.monitor();
+wait(5);
+if(af.is_pressed(continue_btn))
+{
+if(!af.is_checked(agree_cb))
 {
 dlg("You must agree to the rules to play.");
-exit();
+continue;
 }
 rules_accepted = true;
 writeprefs();
+show_game_window("Obsidian "+version);
+return;
+}
+if(af.is_pressed(exit_btn))
+{
+exit();
+}
+}
 }
 void show_changelog_menu()
 {
@@ -187,32 +210,15 @@ setupmenu(true);
 menu.add_item_tts("Play","livechat");
 menu.add_item_tts("Options", "options");
 menu.add_item_tts("Changelog","changelog");
-if(SCRIPT_COMPILED==false)
-{
-menu.add_item_tts("Switch to local server","switch");
-menu.add_item_tts("Switch to beta server","switchbeta");
-}
 menu.add_item_tts("Quit","quit");
 string menu_title="Obsidian";
 if(stored_user != "") menu_title="Obsidian - "+stored_user;
 int result=menu.run(menu_title, true);
-if(menu.get_item_name(result)=="switchbeta")
-{
-ip="110.22.56.156";
-speak("Beta server selected.");
-mainmenu();
-}
 if(result==0 or menu.get_item_name(result)=="quit")
 {
 exit();
 }
 else if(menu.get_item_name(result)=="options") options_menu();
-else if(menu.get_item_name(result)=="switch")
-{
-ip="localhost";
-speak("Local server selected.");
-mainmenu();
-}
 else if(menu.get_item_name(result)=="livechat")
 {
 login();
@@ -223,111 +229,32 @@ show_changelog_menu();
 mainmenu();
 }
 }
-void viewmenu()
-{
-setupmenu();
-string comments=url_get(web+"/cm.txt");
-comment=string_split(comments, "\r\n", true);
-/*
-if(comment[0]=="")
-{
-dlg("error: no comments found.");
-mainmenu();
-}
-else
-*/
-for(uint stuff=0; stuff<comment.length(); stuff++)
-{
-if(comment[stuff]!="") menu.add_item_tts(comment[stuff], "", "", false);
-}
-menu.add_item_tts("go back", "back");
-check_for_comments(false);
-menu.speak_position_information=true;
-int result=menu.run("comments menu. press up and down arrow to read.", true);
-if(result==0 or menu.get_item_name(result)=="back")
-{
-last_seen_comments=comment.length();
-file f;
-f.open(prefsdir+"/last.dat", "wb");
-f.write(last_seen_comments);
-f.close();
-mainmenu();
-}
-}
-void post(bool watcher_active=false)
-{
-if(string_to_lower_case(name)=="ivan"&&SCRIPT_COMPILED)
-{
-dlg("name is not valid!");
-exit();
-}
-if(name=="")
-{
-dlg("sorry, but you can not post with out setting your name");
-mainmenu();
-}
-else
-{
-string comment=v.input("enter your comment here.");
-if(comment=="")
-{
-dlg("can not post an empty comment!");
-mainmenu();
-}
-else
-{
-comment+=" posted from BWComments lodge version "+yversion;
-dlg(url_post(web+"/cm.php", "yourname="+name+"&yourcomment="+comment+"&passkey="+passc+"&version="+version));
-if(!watcher_active) mainmenu();
-}
-}
-}
-
 void options_menu()
 {
 af.reset();
 af.create_window("Options", true, true);
-int name_field = af.create_input_box("&Name", name);
 int scroll_cb = af.create_checkbox("Enable menu &side scrolling", menuscroll==1);
-int server_field = -1;
-int port_field = -1;
-if(SCRIPT_COMPILED==false)
-{
-server_field = af.create_input_box("Server &address", ip);
-port_field = af.create_input_box("Server &port", ""+client_port);
-}
+int server_field = af.create_input_box("Server &address", ip);
+int port_field = af.create_input_box("Server &port", ""+client_port);
 int account_setup_btn = af.create_button("&Register new account");
 int add_existing_btn = af.create_button("Add &existing account");
 int save_btn = af.create_button("&Save", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
-af.focus(name_field);
+af.focus(scroll_cb);
 while(true)
 {
 af.monitor();
 wait(5);
 if(af.is_pressed(save_btn))
 {
-string new_name = af.get_text(name_field);
-if(new_name != "" and string_contains(new_name, " ", 1) == -1)
-{
-name = new_name;
-}
-else if(string_contains(new_name, " ", 1) > -1)
-{
-dlg("Your name must not have spaces!");
-continue;
-}
 if(af.is_checked(scroll_cb))
 menuscroll = 1;
 else
 menuscroll = 0;
-if(SCRIPT_COMPILED==false)
-{
 string new_ip = af.get_text(server_field);
 if(new_ip != "") ip = new_ip;
 string new_port = af.get_text(port_field);
 if(new_port != "") client_port = string_to_number(new_port);
-}
 writeprefs();
 dlg("Settings saved.");
 show_game_window("Obsidian "+version);
@@ -430,9 +357,24 @@ event=net.request();
 wait(5);
 if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
 {
-dlg("Could not reach the server. It may be offline.");
 connectiontimer.restart();
+connected=false;
+setupmenu();
+menu.add_item_tts("Try again", "retry");
+menu.add_item_tts("Back to main menu", "back");
+int result = menu.run("Could not reach the server", true);
+if(menu.get_item_name(result) == "retry")
+{
+speak("Reconnecting...");
+net.connect(ip, client_port);
+connectiontimer.restart();
+continue;
+}
+else
+{
 mainmenu();
+return;
+}
 }
 else if(event.type==event_connect and connected==false)
 {
@@ -498,9 +440,24 @@ event=net.request();
 wait(5);
 if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
 {
-dlg("Could not reach the server. It may be offline.");
 connectiontimer.restart();
+connected=false;
+setupmenu();
+menu.add_item_tts("Try again", "retry");
+menu.add_item_tts("Back to main menu", "back");
+int result = menu.run("Could not reach the server", true);
+if(menu.get_item_name(result) == "retry")
+{
+speak("Reconnecting...");
+net.connect(ip, client_port);
+connectiontimer.restart();
+continue;
+}
+else
+{
 mainmenu();
+return;
+}
 }
 else if(event.type==event_connect and connected==false)
 {
@@ -527,124 +484,3 @@ mainmenu();
 }
 }
 
-void checkname()
-{
-file f;
-if(file_exists(prefsdir+"/name.dat"))
-{
-f.open(prefsdir+"/name.dat", "rb");
-name=f.read();
-f.close();
-}
-}
-void setname()
-{
-string name2=v.input("enter your name to be set");
-if(string_contains(name2," ",1)>-1)
-{
-dlg("Your name must not have spaces!");
-mainmenu();
-}
-if(name2=="")
-{
-mainmenu();
-}
-else
-{
-name=name2;
-writeprefs();
-dlg("success: you have set your name to "+name);
-mainmenu();
-}
-}
-
-void watcher()
-{
-timer comment_timer;
-int comment_time=5000;
-while(true)
-{
-if(comment_timer.elapsed>comment_time)
-{
-comment_timer.restart();
-string content=url_get(web+"/cm.txt");
-comment=string_split(content, "\r\n", true);
-check_for_comments(true);
-}
-if(key_pressed(KEY_RETURN))
-{
-comment_timer.pause();
-post(true);
-comment_timer.resume();
-}
-if(key_pressed(KEY_ESCAPE))
-exit();
-wait(5);
-}
-}
-void check_for_comments(bool shoulditspeak)
-{
-int new=comment.length()-last_seen_comments;
-if(new!=0)
-{
-if(shoulditspeak)
-{
-p.play_stationary("newcomment.wav", false);
-speak("there are "+new+" new comments", false);
-}
-}
-last_seen_comments=comment.length();
-if(new>0 and shoulditspeak)
-for(int i=new; i>0; i--)
-speak(comment[comment.length()-i], false);
-writeprefs();
-}
-string soundsmenu()
-{
-if(!directory_exists("upsounds"))
-{
-directory_create("upsounds");
-speak("No upsounds folder was found. It has now been created, you may put your files in it.");
-return "";
-}
-string[] soundfiles=find_files("upsounds/*.ogg");
-if(soundfiles.length<=0)
-{
-speak("No files found in upsounds");
-return "";
-}
-setupmenu();
-menu.enable_first_letter_navigation=true;
-menu.speak_position_information=true;
-for(uint i=0; i<soundfiles.length; i++)
-{
-menu.add_item_tts(string_replace(soundfiles[i],".ogg","",true),soundfiles[i]);
-}
-int mres=menu.run("Choose a sound file to send, there are "+soundfiles.length()+" sounds",true);
-if(mres<=0)
-{
-return "";
-}
-else return menu.get_item_name(mres);
-}
-
-
-void uploadsound()
-{
-string sf=soundsmenu();
-if(sf!="")
-{
-file fr;
-fr.open("upsounds/"+sf,"rb");
-send_reliable(0,"cs_sound "+fr.read(),2);
-fr.close();
-}
-}
-string get_location(int number)
-{
-if(number>=0 and number<=300)
-{
-return ""+number+", fighting in the battlefield";
-}
-return "";
-}

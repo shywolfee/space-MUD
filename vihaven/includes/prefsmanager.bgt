@@ -1,3 +1,4 @@
+// Settings persistence
 void readprefs()
 {
 if(!file_exists(prefsdir+"/settings.dat")) return;
@@ -18,13 +19,7 @@ values.insert_at(i, string_replace(parameters[i], string_left(parameters[i], eq+
 parameters[i]=string_replace(parameters[i], "="+values[i], "", true);
 }
 if(parameters.find("name")!=-1)
-{
 name=values[parameters.find("name")];
-}
-if(parameters.find("lastcoms")!=-1)
-{
-last_seen_comments=string_to_number(values[parameters.find("lastcoms")]);
-}
 if(parameters.find("menuscrolling")!=-1)
 menuscroll=string_to_number(values[parameters.find("menuscrolling")]);
 if(parameters.find("rules_accepted")!=-1)
@@ -35,6 +30,10 @@ if(parameters.find("stored_pass")!=-1)
 stored_pass=values[parameters.find("stored_pass")];
 if(parameters.find("stored_email")!=-1)
 stored_email=values[parameters.find("stored_email")];
+if(parameters.find("server")!=-1)
+ip=values[parameters.find("server")];
+if(parameters.find("port")!=-1)
+client_port=string_to_number(values[parameters.find("port")]);
 }
 void writeprefs()
 {
@@ -42,7 +41,7 @@ file p;
 p.open(prefsdir+"/settings.dat", "wb");
 string ra="0";
 if(rules_accepted) ra="1";
-string what="name="+name+"\n"+"lastcoms="+last_seen_comments+"\n"+"menuscrolling="+menuscroll+"\n"+"rules_accepted="+ra+"\n"+"stored_user="+stored_user+"\n"+"stored_pass="+stored_pass+"\n"+"stored_email="+stored_email;
+string what="name="+name+"\n"+"menuscrolling="+menuscroll+"\n"+"rules_accepted="+ra+"\n"+"stored_user="+stored_user+"\n"+"stored_pass="+stored_pass+"\n"+"stored_email="+stored_email+"\n"+"server="+ip+"\n"+"port="+client_port;
 p.write(string_encrypt(what, "fucking comments"));
 p.close();
 }

@@ -8,6 +8,7 @@ int money;
 timer antitimer;
 int antiamount;
 string[]inv;
+int inv_cursor=-1;
 timer beacontimer;
 string lasthit;
 timer weapontimer;
