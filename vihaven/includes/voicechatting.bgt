@@ -19,10 +19,7 @@ result+="\r\n"+send_command("save voice "+filename+" wait");
 result+="\r\n"+send_command("close voice wait");
 if (convert==true)
 {
-if (channels==2)
 run("oggenc2.exe","-q3 --resample 32000 -s0 \""+this.filename+"\" -o \""+convertfilename+"\"",true,true);
-else
-run("oggenc2.exe","-q3 --downmix --resample 32000 -s0 \""+this.filename+"\" -o \""+convertfilename+"\"",true,true);
 }
 }
 private string send_command(string command)
