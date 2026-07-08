@@ -1,0 +1,61 @@
+Version 0.5.0.1 - Obsidian
+- Changelog now loads from changelog.txt file and displays in a readable form
+- Fixed window title changing unexpectedly when using audio form dialogues
+- Rules and other long text fields now use read-only edit boxes for proper multiline navigation
+
+Version 0.5 beta - Obsidian
+- Inventory now uses server as source of truth, no client caching
+- TAB and shift TAB cycle inventory via server, I opens inventory menu
+- ENTER uses the currently selected inventory item via server
+- Connection timeouts now offer retry or back to menu
+- Rules screen is now a form with checkbox instead of a menu
+- Server config (address and port) now saved in settings and always visible
+- Removed localhost and beta server menu shortcuts
+- Removed name field from options (handled by accounts)
+- Item pickup and weapon equip messages are now consistent
+- Fixed who command trailing comma
+- Private messages now give feedback when player not found
+- Chat rate limiting now tells you when you are sending too fast
+- Fixed menu click, edge, and enter sounds never playing
+- Fixed online notification message formatting
+- Removed dead code: comments system, watcher, sound upload
+- Split monolithic chat.bgt into connection.bgt, game.bgt, and chat.bgt
+
+Version 0.4 beta - Obsidian
+- Fixed rules agreement not persisting between sessions
+- Main menu now shows account name and uses cleaner labels
+- Inventory auto-loads on connect, I key opens inventory menu
+- TAB and shift TAB cycling now shows item position
+- Item names display with spaces instead of underscores
+- Escape to disconnect now shows clear countdown feedback
+- Login flow offers add existing account option when no account set
+- Changelog and inventory menus support escape key to close
+- Replaced jarring alert popups with in-game dialog messages
+- Polished registration form labels and marked email as optional
+- Cleaner first-run experience and welcome flow
+
+Version 0.3 beta - Obsidian
+- Options menu now uses audio form controls
+- Login automatically uses stored account credentials
+- Login offers to register if no account exists on server
+- Registration form: username, password, confirm, email, rules checkbox
+- Account credentials stored in encrypted settings file
+- Add existing account option verifies with server before saving
+- Added form, buffer, dateandtime, submenu system, and updater includes
+- Server now stores email on registration
+- Fixed buffer system compatibility with BGT speak and removed invalid calls
+
+Version 0.2 beta - Obsidian
+- Renamed game from VI Haven to Obsidian
+- Added encrypted accounts system with registration and login
+- Player data now persists between sessions
+- Added first-run beta rules agreement screen
+- Rules must be accepted to register an account
+- Added account setup option in customization menu
+- Added server and port settings when running from source
+- Added /changes command to view changelog in game
+- Added tab and shift tab inventory cycling with enter to use items
+- Rules are now loaded from rules.txt
+
+Version 0.17 revival patch 1 - VI Haven
+- Original release

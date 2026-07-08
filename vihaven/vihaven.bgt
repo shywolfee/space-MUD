@@ -26,7 +26,8 @@ voicechatting vc;
 dynamic_menu_pro menu;
 string prefsdir=DIRECTORY_APPDATA+"/"+"Obsidian";
 int usound;
-string name="noName"+random(0,9999), company="obsidian", version="0.5 beta";
+string name="noName"+random(0,9999), company="obsidian", version="0.5.0.1";
+string changelog_text;
 instance game("system");
 sound_pool p, chat;
 virtualizer v;
@@ -34,7 +35,6 @@ int menuscroll;
 bool sentpacket=false;
 bool rules_accepted=false;
 string[] last_inv;
-string[] changelog;
 string rules_text;
 string stored_user="";
 string stored_pass="";
@@ -81,69 +81,23 @@ rules_text = "No rules file found. Please ensure rules.txt exists in the game di
 }
 void load_changelog()
 {
-changelog.resize(0);
-changelog.insert_last("Version 0.5 beta - Obsidian");
-changelog.insert_last("- Inventory now uses server as source of truth, no client caching");
-changelog.insert_last("- TAB and shift TAB cycle inventory via server, I opens inventory menu");
-changelog.insert_last("- ENTER uses the currently selected inventory item via server");
-changelog.insert_last("- Connection timeouts now offer retry or back to menu");
-changelog.insert_last("- Rules screen is now a form with checkbox instead of a menu");
-changelog.insert_last("- Server config (address and port) now saved in settings and always visible");
-changelog.insert_last("- Removed localhost and beta server menu shortcuts");
-changelog.insert_last("- Removed name field from options (handled by accounts)");
-changelog.insert_last("- Item pickup and weapon equip messages are now consistent");
-changelog.insert_last("- Fixed who command trailing comma");
-changelog.insert_last("- Private messages now give feedback when player not found");
-changelog.insert_last("- Chat rate limiting now tells you when you are sending too fast");
-changelog.insert_last("- Fixed menu click, edge, and enter sounds never playing");
-changelog.insert_last("- Fixed online notification message formatting");
-changelog.insert_last("- Removed dead code: comments system, watcher, sound upload");
-changelog.insert_last("- Split monolithic chat.bgt into connection.bgt, game.bgt, and chat.bgt");
-changelog.insert_last("");
-changelog.insert_last("Version 0.4 beta - Obsidian");
-changelog.insert_last("- Fixed rules agreement not persisting between sessions");
-changelog.insert_last("- Main menu now shows account name and uses cleaner labels");
-changelog.insert_last("- Inventory auto-loads on connect, I key opens inventory menu");
-changelog.insert_last("- TAB and shift TAB cycling now shows item position");
-changelog.insert_last("- Item names display with spaces instead of underscores");
-changelog.insert_last("- Escape to disconnect now shows clear countdown feedback");
-changelog.insert_last("- Login flow offers add existing account option when no account set");
-changelog.insert_last("- Changelog and inventory menus support escape key to close");
-changelog.insert_last("- Replaced jarring alert popups with in-game dialog messages");
-changelog.insert_last("- Polished registration form labels and marked email as optional");
-changelog.insert_last("- Cleaner first-run experience and welcome flow");
-changelog.insert_last("");
-changelog.insert_last("Version 0.3 beta - Obsidian");
-changelog.insert_last("- Options menu now uses audio form controls");
-changelog.insert_last("- Login automatically uses stored account credentials");
-changelog.insert_last("- Login offers to register if no account exists on server");
-changelog.insert_last("- Registration form: username, password, confirm, email, rules checkbox");
-changelog.insert_last("- Account credentials stored in encrypted settings file");
-changelog.insert_last("- Add existing account option verifies with server before saving");
-changelog.insert_last("- Added form, buffer, dateandtime, submenu system, and updater includes");
-changelog.insert_last("- Server now stores email on registration");
-changelog.insert_last("- Fixed buffer system compatibility with BGT speak and removed invalid calls");
-changelog.insert_last("");
-changelog.insert_last("Version 0.2 beta - Obsidian");
-changelog.insert_last("- Renamed game from VI Haven to Obsidian");
-changelog.insert_last("- Added encrypted accounts system with registration and login");
-changelog.insert_last("- Player data now persists between sessions");
-changelog.insert_last("- Added first-run beta rules agreement screen");
-changelog.insert_last("- Rules must be accepted to register an account");
-changelog.insert_last("- Added account setup option in customization menu");
-changelog.insert_last("- Added server and port settings when running from source");
-changelog.insert_last("- Added /changes command to view changelog in game");
-changelog.insert_last("- Added tab and shift tab inventory cycling with enter to use items");
-changelog.insert_last("- Rules are now loaded from rules.txt");
-changelog.insert_last("");
-changelog.insert_last("Version 0.17 revival patch 1 - VI Haven");
-changelog.insert_last("- Original release");
+if(file_exists("changelog.txt"))
+{
+file f;
+f.open("changelog.txt", "r");
+changelog_text = f.read();
+f.close();
+}
+else
+{
+changelog_text = "No changelog file found. Please ensure changelog.txt exists in the game directory.";
+}
 }
 void show_rules_screen()
 {
 af.reset();
-af.create_window("Rules Agreement", true, true);
-int rules_display = af.create_status_bar("Rules", rules_text);
+af.create_window("Rules Agreement", false, true);
+int rules_display = af.create_input_box("&Rules", rules_text, "", 0, true, true);
 int agree_cb = af.create_checkbox("I &agree to the rules", false);
 int continue_btn = af.create_button("&Continue", true);
 int exit_btn = af.create_button("&Exit game", false, true);
@@ -161,7 +115,6 @@ continue;
 }
 rules_accepted = true;
 writeprefs();
-show_game_window("Obsidian "+version);
 return;
 }
 if(af.is_pressed(exit_btn))
@@ -172,16 +125,20 @@ exit();
 }
 void show_changelog_menu()
 {
-setupmenu();
-menu.allow_escape=true;
-for(uint i = 0; i < changelog.length(); i++)
+af.reset();
+af.create_window("Changelog", false, true);
+int changelog_display = af.create_input_box("&Changelog", changelog_text, "", 0, true, true);
+int close_btn = af.create_button("&Close", false, true);
+af.focus(changelog_display);
+while(true)
 {
-if(changelog[i] != "")
-menu.add_item_tts(changelog[i], "", "", false);
+af.monitor();
+wait(5);
+if(af.is_pressed(close_btn))
+{
+return;
 }
-menu.add_item_tts("Back", "back");
-menu.speak_position_information = true;
-int result = menu.run("Changelog", true);
+}
 }
 void setupmenu(bool music=false)
 {
@@ -232,7 +189,7 @@ mainmenu();
 void options_menu()
 {
 af.reset();
-af.create_window("Options", true, true);
+af.create_window("Options", false, true);
 int scroll_cb = af.create_checkbox("Enable menu &side scrolling", menuscroll==1);
 int server_field = af.create_input_box("Server &address", ip);
 int port_field = af.create_input_box("Server &port", ""+client_port);
@@ -257,25 +214,21 @@ string new_port = af.get_text(port_field);
 if(new_port != "") client_port = string_to_number(new_port);
 writeprefs();
 dlg("Settings saved.");
-show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
 if(af.is_pressed(account_setup_btn))
 {
-show_game_window("Obsidian "+version);
 register_form();
 return;
 }
 if(af.is_pressed(add_existing_btn))
 {
-show_game_window("Obsidian "+version);
 add_existing_account();
 return;
 }
@@ -284,12 +237,12 @@ return;
 void register_form()
 {
 af.reset();
-af.create_window("Register a new account", true, true);
+af.create_window("Register a new account", false, true);
 int user_field = af.create_input_box("&Username");
 int pass_field = af.create_input_box("&Password", "", "*");
 int confirm_field = af.create_input_box("&Repeat password", "", "*");
 int email_field = af.create_input_box("&Email, optional");
-int rules_status = af.create_status_bar("Rules", rules_text);
+int rules_status = af.create_input_box("&Rules", rules_text, "", 0, true, true);
 int agree_cb = af.create_checkbox("I &agree to the rules", false);
 int register_btn = af.create_button("&Register", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
@@ -334,14 +287,12 @@ stored_user = reg_user;
 stored_pass = reg_pass;
 stored_email = reg_email;
 writeprefs();
-show_game_window("Obsidian "+version);
 speak("connecting to server.");
 do_register_on_server(reg_user, reg_pass, reg_email);
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian "+version);
 mainmenu();
 return;
 }
@@ -398,7 +349,7 @@ mainmenu();
 void add_existing_account()
 {
 af.reset();
-af.create_window("Add an existing account", true, true);
+af.create_window("Add an existing account", false, true);
 int user_field = af.create_input_box("&Username");
 int pass_field = af.create_input_box("&Password", "", "*");
 int login_btn = af.create_button("&Verify and save", true);
@@ -417,14 +368,12 @@ if(check_user == "" or check_pass == "")
 dlg("Username and password are required!");
 continue;
 }
-show_game_window("Obsidian "+version);
 speak("Verifying account with server...");
 verify_and_save_account(check_user, check_pass);
 return;
 }
 if(af.is_pressed(cancel_btn))
 {
-show_game_window("Obsidian "+version);
 options_menu();
 return;
 }
