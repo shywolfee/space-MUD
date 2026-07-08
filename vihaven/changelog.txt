@@ -1,3 +1,12 @@
+Version 0.5.0.2 - Obsidian
+- Added Connection menu as a dedicated hub for account and server management
+- Play using your account now appears in Connection menu when an account is set up
+- Set up account verifies the server is online before showing the form
+- Account setup form now includes a Remember me checkbox to control credential persistence
+- Account setup validates that the account exists on the server before saving
+- Create a new account option moved to Connection menu
+- Removed account management buttons from Options menu
+
 Version 0.5.0.1 - Obsidian
 - Changelog now loads from changelog.txt file and displays in a readable form
 - Fixed window title changing unexpectedly when using audio form dialogues

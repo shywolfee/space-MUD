@@ -26,7 +26,7 @@ voicechatting vc;
 dynamic_menu_pro menu;
 string prefsdir=DIRECTORY_APPDATA+"/"+"Obsidian";
 int usound;
-string name="noName"+random(0,9999), company="obsidian", version="0.5.0.1";
+string name="noName"+random(0,9999), company="obsidian", version="0.5.0.2";
 string changelog_text;
 instance game("system");
 sound_pool p, chat;
@@ -164,7 +164,7 @@ menu.enable_up_and_down=true;
 void mainmenu()
 {
 setupmenu(true);
-menu.add_item_tts("Play","livechat");
+menu.add_item_tts("Connection","connection");
 menu.add_item_tts("Options", "options");
 menu.add_item_tts("Changelog","changelog");
 menu.add_item_tts("Quit","quit");
@@ -175,15 +175,50 @@ if(result==0 or menu.get_item_name(result)=="quit")
 {
 exit();
 }
+else if(menu.get_item_name(result)=="connection") connection_menu();
 else if(menu.get_item_name(result)=="options") options_menu();
-else if(menu.get_item_name(result)=="livechat")
-{
-login();
-}
 else if(menu.get_item_name(result)=="changelog")
 {
 show_changelog_menu();
 mainmenu();
+}
+}
+void connection_menu()
+{
+setupmenu();
+if(stored_user != "")
+menu.add_item_tts("Play using "+stored_user, "play");
+menu.add_item_tts("Set up account", "setup");
+menu.add_item_tts("Create a new account", "register");
+menu.add_item_tts("Go back", "back");
+menu.allow_escape=true;
+int result = menu.run("Connection", true);
+if(result == 0 or menu.get_item_name(result) == "back")
+{
+mainmenu();
+return;
+}
+else if(menu.get_item_name(result) == "play")
+{
+login();
+return;
+}
+else if(menu.get_item_name(result) == "setup")
+{
+speak("Checking server status...");
+if(!check_server_online())
+{
+dlg("The server is not available. Please try again later.");
+connection_menu();
+return;
+}
+setup_account_form();
+return;
+}
+else if(menu.get_item_name(result) == "register")
+{
+register_form();
+return;
 }
 }
 void options_menu()
@@ -193,8 +228,6 @@ af.create_window("Options", false, true);
 int scroll_cb = af.create_checkbox("Enable menu &side scrolling", menuscroll==1);
 int server_field = af.create_input_box("Server &address", ip);
 int port_field = af.create_input_box("Server &port", ""+client_port);
-int account_setup_btn = af.create_button("&Register new account");
-int add_existing_btn = af.create_button("Add &existing account");
 int save_btn = af.create_button("&Save", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
 af.focus(scroll_cb);
@@ -220,16 +253,6 @@ return;
 if(af.is_pressed(cancel_btn))
 {
 mainmenu();
-return;
-}
-if(af.is_pressed(account_setup_btn))
-{
-register_form();
-return;
-}
-if(af.is_pressed(add_existing_btn))
-{
-add_existing_account();
 return;
 }
 }
@@ -293,7 +316,7 @@ return;
 }
 if(af.is_pressed(cancel_btn))
 {
-mainmenu();
+connection_menu();
 return;
 }
 }
@@ -312,7 +335,7 @@ connectiontimer.restart();
 connected=false;
 setupmenu();
 menu.add_item_tts("Try again", "retry");
-menu.add_item_tts("Back to main menu", "back");
+menu.add_item_tts("Back", "back");
 int result = menu.run("Could not reach the server", true);
 if(menu.get_item_name(result) == "retry")
 {
@@ -323,7 +346,7 @@ continue;
 }
 else
 {
-mainmenu();
+connection_menu();
 return;
 }
 }
@@ -336,30 +359,52 @@ if(event.type==event_receive and get_event_message()=="registered")
 {
 dlg("Account registered successfully! You can now log in.");
 connected=false;
-mainmenu();
+connection_menu();
 }
 else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
 {
 dlg(get_event_message());
 connected=false;
-mainmenu();
+connection_menu();
 }
 }
 }
-void add_existing_account()
+bool check_server_online()
+{
+net.connect(ip, client_port);
+connectiontimer.restart();
+while(true)
+{
+event = net.request();
+wait(5);
+if(connectiontimer.elapsed >= connectingtime)
+{
+connected = false;
+return false;
+}
+if(event.type == event_connect)
+{
+send_reliable(0, "disconnect", 0);
+connected = false;
+return true;
+}
+}
+}
+void setup_account_form()
 {
 af.reset();
-af.create_window("Add an existing account", false, true);
+af.create_window("Set up account", false, true);
 int user_field = af.create_input_box("&Username");
 int pass_field = af.create_input_box("&Password", "", "*");
-int login_btn = af.create_button("&Verify and save", true);
+int remember_cb = af.create_checkbox("&Remember me", true);
+int setup_btn = af.create_button("&Set up account", true);
 int cancel_btn = af.create_button("&Cancel", false, true);
 af.focus(user_field);
 while(true)
 {
 af.monitor();
 wait(5);
-if(af.is_pressed(login_btn))
+if(af.is_pressed(setup_btn))
 {
 string check_user = af.get_text(user_field);
 string check_pass = af.get_text(pass_field);
@@ -368,67 +413,67 @@ if(check_user == "" or check_pass == "")
 dlg("Username and password are required!");
 continue;
 }
+bool remember = af.is_checked(remember_cb);
 speak("Verifying account with server...");
-verify_and_save_account(check_user, check_pass);
+int result = verify_account(check_user, check_pass, remember);
+if(result == 1)
+{
+dlg("Account set up successfully!");
+connection_menu();
 return;
+}
+else if(result == 0)
+{
+dlg("That account does not exist. Please enter your information again.");
+continue;
+}
+else
+{
+dlg("Could not reach the server. Please try again later.");
+connection_menu();
+return;
+}
 }
 if(af.is_pressed(cancel_btn))
 {
-options_menu();
+connection_menu();
 return;
 }
 }
 }
-void verify_and_save_account(string check_user, string check_pass)
+int verify_account(string check_user, string check_pass, bool remember)
 {
 net.connect(ip, client_port);
 connectiontimer.restart();
 while(true)
 {
-event=net.request();
+event = net.request();
 wait(5);
-if(connectiontimer.elapsed>=connectingtime and connected==false or event.type==event_disconnect)
+if(connectiontimer.elapsed >= connectingtime and connected == false or event.type == event_disconnect)
 {
-connectiontimer.restart();
-connected=false;
-setupmenu();
-menu.add_item_tts("Try again", "retry");
-menu.add_item_tts("Back to main menu", "back");
-int result = menu.run("Could not reach the server", true);
-if(menu.get_item_name(result) == "retry")
-{
-speak("Reconnecting...");
-net.connect(ip, client_port);
-connectiontimer.restart();
-continue;
+connected = false;
+return -1;
 }
-else
-{
-mainmenu();
-return;
-}
-}
-else if(event.type==event_connect and connected==false)
+else if(event.type == event_connect and connected == false)
 {
 send_reliable(0, "login "+check_user+" "+check_pass+" "+yversion, 0);
-connected=true;
+connected = true;
 }
-if(event.type==event_receive and get_event_message()=="done")
+if(event.type == event_receive and get_event_message() == "done")
 {
 name = check_user;
 stored_user = check_user;
 stored_pass = check_pass;
+if(remember)
 writeprefs();
-dlg("Account verified and saved! You can now log in directly.");
 send_reliable(0, "disconnect", 0);
-connected=false;
-mainmenu();
+connected = false;
+return 1;
 }
-else if(event.type==event_receive and string_contains(get_event_message(), "error:", 1)>-1)
+else if(event.type == event_receive and string_contains(get_event_message(), "error:", 1) > -1)
 {
-dlg(get_event_message());
-connected=false;
-mainmenu();
+connected = false;
+return 0;
 }
 }
 }
