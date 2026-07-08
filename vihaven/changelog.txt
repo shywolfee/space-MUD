@@ -1,3 +1,6 @@
+Version 0.5.0.3 - Obsidian
+- Fixed compilation error in check_server_online and verify_account where not all code paths returned a value
+
 Version 0.5.0.2 - Obsidian
 - Added Connection menu as a dedicated hub for account and server management
 - Play using your account now appears in Connection menu when an account is set up

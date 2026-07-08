@@ -26,7 +26,7 @@ voicechatting vc;
 dynamic_menu_pro menu;
 string prefsdir=DIRECTORY_APPDATA+"/"+"Obsidian";
 int usound;
-string name="noName"+random(0,9999), company="obsidian", version="0.5.0.2";
+string name="noName"+random(0,9999), company="obsidian", version="0.5.0.3";
 string changelog_text;
 instance game("system");
 sound_pool p, chat;
@@ -389,6 +389,7 @@ connected = false;
 return true;
 }
 }
+return false;
 }
 void setup_account_form()
 {
@@ -476,5 +477,6 @@ connected = false;
 return 0;
 }
 }
+return -1;
 }
 
